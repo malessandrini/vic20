@@ -10,10 +10,15 @@ row		equ 0
 column	equ	1
 color	equ 2
 
+
+board	equ $1f00
+
 		org 4097
 		byte 11,16,10,0,158,"4","1","0","9",0,0,0  ; 10 SYS4109
 
 start:
+
+;  clear screen: space character
 		lda #32
 
 		ldy #253
@@ -26,6 +31,7 @@ loop2:	dey
 		sta video+253,y
 		bne loop2
 
+; clear screen: color
 		lda #5
 
 		ldy #253
@@ -38,6 +44,8 @@ loop4:	dey
 		sta vcolor+253,y
 		bne loop4
 
+; draw all the board
+
 		lda #5
 		sta row
 loopR:
@@ -47,18 +55,22 @@ loopC:
 		lda #0
 		sta color
 		jsr drawSlot
+		ldx #64
 		jsr delay
 		lda #4
 		sta color
 		jsr drawSlot
+		ldx #64
 		jsr delay
 		lda #0
 		sta color
 		jsr drawSlot
+		ldx #64
 		jsr delay
 		lda #4
 		sta color
 		jsr drawSlot
+		ldx #64
 		jsr delay
 		dec column
 		bpl loopC
@@ -66,8 +78,11 @@ loopC:
 		bpl loopR
 
 
+
+
 		jmp hang
 
+; ----------------------------------------------------------------------
 
 drawSlot:
 		; input: row, column, color
@@ -109,8 +124,10 @@ drawOk:	tay
 		rts
 
 
+; ----------------------------------------------------------------------
+
 delay:
-		ldx #64
+		; input : x
 delay1: ldy #255
 delay2:	dey
 		bne delay2
