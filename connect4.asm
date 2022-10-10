@@ -16,18 +16,18 @@ board	equ $1f00
 		org 4097
 		byte 11,16,10,0,158,"4","1","0","9",0,0,0  ; 10 SYS4109
 
-start:
+start
 
 ;  clear screen: space character
 		lda #32
 
 		ldy #253
-loop1:	dey
+loop1	dey
 		sta video,y
 		bne loop1
 
 		ldy #253
-loop2:	dey
+loop2	dey
 		sta video+253,y
 		bne loop2
 
@@ -35,12 +35,12 @@ loop2:	dey
 		lda #5
 
 		ldy #253
-loop3:	dey
+loop3	dey
 		sta vcolor,y
 		bne loop3
 
 		ldy #253
-loop4:	dey
+loop4	dey
 		sta vcolor+253,y
 		bne loop4
 
@@ -48,10 +48,10 @@ loop4:	dey
 
 		lda #5
 		sta row
-loopR:
+loopR
 		lda #6
 		sta column
-loopC:
+loopC
 		lda #0
 		sta color
 		jsr drawSlot
@@ -84,22 +84,23 @@ loopC:
 
 ; ----------------------------------------------------------------------
 
-drawSlot:
+drawSlot
+		SUBROUTINE
 		; input: row, column, color
 		lda #0
 		clc
 		ldx row
-draw1:
-		beq draw1a
+.draw1
+		beq .draw1a
 		adc #44
 		dex
-		jmp draw1
-draw1a:	ldx column
-draw2:	beq drawOk
+		jmp .draw1
+.draw1a	ldx column
+.draw2	beq .drawOk
 		adc #2
 		dex
-		jmp draw2
-drawOk:	tay
+		jmp .draw2
+.drawOk	tay
 		lda #85
 		sta video+off,y
 		lda color
@@ -126,15 +127,17 @@ drawOk:	tay
 
 ; ----------------------------------------------------------------------
 
-delay:
+delay
+		SUBROUTINE
 		; input : x
-delay1: ldy #255
-delay2:	dey
-		bne delay2
+.loop1	ldy #255
+.loop2	dey
+		bne .loop2
 		dex
-		bne delay1
+		bne .loop1
 		rts
 
 
 
-hang:	jmp hang
+hang	jmp hang
+
