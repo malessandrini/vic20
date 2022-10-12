@@ -6,17 +6,29 @@ off		equ 22*7+4
 
 
 		; variables in zero page
-row		equ 0
-column	equ	1
-color	equ 2
+		seg.u zpvars
+		org 0
+row		ds 1
+column	ds 1
+color	ds 1
+;
+zplimit
+
+		IF zplimit > 144
+			ERR
+		ENDIF
 
 
 board	equ $1f00
 
+		seg code
 		org 4097
 		byte 11,16,10,0,158,"4","1","0","9",0,0,0  ; 10 SYS4109
 
 start
+
+		ldx #255
+		txs
 
 ;  clear screen: space character
 		lda #32
