@@ -26,7 +26,11 @@ score		ds 1
 score2		ds 1
 tmp1		ds 1
 i			ds 1
+g			ds 1
 colscores	ds 7
+maxgroup	ds 1
+incr		ds 1
+ptr			ds 1
 
 ;
 zplimit
@@ -296,9 +300,9 @@ recursion
 
 computescore
 		SUBROUTINE
-		lda #scoreImpossible
-		sta score
-		rts
+;		lda #scoreImpossible
+;		sta score
+;		rts
 		; TODO
 		lda #0
 		sta score
@@ -320,13 +324,14 @@ computescore
 		bne .l1a
 		lda #scoreRow4
 		sta score
-		jmp end
+		jmp .end
 .l1a	cmp #3
 		bne .l2a
 		lda score2
 		clc
 		adc #scoreRow3
 		sta score2
+		jmp .l3a
 .l2a	cmp #2
 		bne .l3a
 		lda score
@@ -334,12 +339,152 @@ computescore
 		adc #scoreRow2
 		sta score
 .l3a
-
+		; diagonal 1
+		lda row
+		sec
+		sbc #3
+		sta row
+		lda #14
+		sta incr
+		jsr computesequencesub
+		lda maxgroup
+		cmp #4
+		bne .l1b
+		lda #scoreRow4
+		sta score
+		jmp .end
+.l1b	cmp #3
+		bne .l2b
+		lda score2
+		clc
+		adc #scoreRow3
+		sta score2
+		jmp .l3b
+.l2b	cmp #2
+		bne .l3b
+		lda score
+		clc
+		adc #scoreRow2
+		sta score
+.l3b
+		; vertical
+		lda column
+		clc
+		adc #3
+		sta column
+		lda #13
+		sta incr
+		jsr computesequencesub
+		lda maxgroup
+		cmp #4
+		bne .l1c
+		lda #scoreRow4
+		sta score
+		jmp .end
+.l1c	cmp #3
+		bne .l2c
+		lda score2
+		clc
+		adc #scoreRow3
+		sta score2
+		jmp .l3c
+.l2c	cmp #2
+		bne .l3c
+		lda score
+		clc
+		adc #scoreRow2
+		sta score
+.l3c
+		; diagonal 2
+		lda column
+		clc
+		adc #3
+		sta column
+		lda #12
+		sta incr
+		jsr computesequencesub
+		lda maxgroup
+		cmp #4
+		bne .l1d
+		lda #scoreRow4
+		sta score
+		jmp .end
+.l1d	cmp #3
+		bne .l2d
+		lda score2
+		clc
+		adc #scoreRow3
+		sta score2
+		jmp .l3d
+.l2d	cmp #2
+		bne .l3d
+		lda score
+		clc
+		adc #scoreRow2
+		sta score
+.l3d
+		lda score2
+		beq .end
+		sta score
 .end
 		pla
 		sta column
 		pla
 		sta row
+		rts
+
+
+; ----------------------------------------------------------------------
+
+computesequencesub
+		SUBROUTINE
+;		lda #2
+;		sta maxgroup
+;		rts
+		; TODO
+		lda #0
+		sta maxgroup
+		getptr
+		stx ptr
+		lda #3
+		sta g
+.loop1	lda #0
+		sta tmp1
+		ldx ptr
+		lda #3
+		sta i
+.loop2	lda board,x
+		cmp color
+		bne .l1
+		inc tmp1
+		jmp .l2
+.l1		cmp #0
+		beq	.l2
+		sta tmp1
+		jmp .endl2
+.l2		txa
+		clc
+		adc incr
+		tax
+
+		dec i
+		bpl .loop2
+.endl2
+		lda tmp1
+		cmp maxgroup
+		bmi .l3
+		sta maxgroup
+.l3		lda maxgroup
+		cmp #4
+		bne .l4
+		rts
+.l4		lda ptr
+		clc
+		adc incr
+		sta ptr
+
+		dec g
+		bpl .loop1
 		rts
 
 
