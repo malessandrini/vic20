@@ -344,7 +344,7 @@ computescore
 		sec
 		sbc #3
 		sta row
-		lda #14
+		lda #17
 		sta incr
 		jsr computesequencesub
 		lda maxgroup
@@ -372,7 +372,7 @@ computescore
 		clc
 		adc #3
 		sta column
-		lda #13
+		lda #16
 		sta incr
 		jsr computesequencesub
 		lda maxgroup
@@ -400,7 +400,7 @@ computescore
 		clc
 		adc #3
 		sta column
-		lda #12
+		lda #15
 		sta incr
 		jsr computesequencesub
 		lda maxgroup
