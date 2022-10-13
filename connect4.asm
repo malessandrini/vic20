@@ -1,18 +1,25 @@
 		processor 6502
 
-video	equ 7680
-vcolor	equ 38400
-off		equ 22*7+4
-boardsize	equ 16*12-3
-boardstart	equ 3*16+3
-maxdepth	equ	4
+; constants
+video	equ 7680   ; video memory
+vcolor	equ 38400  ; color memory
+off		equ 22*7+4  ; offset for drawing board
+boardsize	equ 16*12-3  ; memory size for board
+boardstart	equ 3*16+3   ; actual start of board
+maxdepth	equ	4  ; recursion depth (cpu-human-cpu-human)
 scoreImpossible	equ -100
 scoreRow2	equ 1
 scoreRow3 	equ 5
 scoreRow4 	equ 21
+GETIN		equ $ffe4  ; kernal, read keyboard input
 
 
-		; variables in zero page
+; variables in zero page
+;
+; we overwrite the Basic variable area, but leave kernal area untouched
+; because the kernal is always executing through interrupts (e.g. keyboard
+; reading). This gives us 144 bytes.
+
 		seg.u zpvars
 		org 0
 row			ds 1
@@ -20,7 +27,7 @@ column		ds 1
 color		ds 1  ; 0 (empty), 1 (human), 2 (cpu)
 manstart	ds 1
 freerow		ds 7  ; free row for each column (0..5, or -1 for full)
-clrs		ds 3
+clrs		ds 3  ; color values for 0, 1, 2
 depth		ds 1
 score		ds 1
 score2		ds 1
@@ -34,17 +41,35 @@ ptr			ds 1
 
 ;
 zplimit
-
+		; check safe limit of allocated area
 		IF zplimit > 144
 			ERR
 		ENDIF
 
+
+; memory area for board data (tape buffer area)
+; board is allocated as 16*12 (6 rows, 7 columns, plus 3 guard positions at
+; every side to compute sequences). 16 is to better multiplicate rows.
+;
+; ****************
+; ****************
+; ****************
+; ***       ******
+; ***       ******
+; ***       ******
+; ***       ******
+; ***       ******
+; ***       ******
+; ****************
+; ****************
+; *************
 
 		seg.u tapebuffer
 		org 828
 board		ds boardsize
 
 
+		; macro to set x to correct offset in board, given row and column
 		mac getptr
 			lda row
 			clc
@@ -58,12 +83,16 @@ board		ds boardsize
 		endm
 
 
+; code area
+
 		seg code
 		org 4097
+
+		; basic stub to launch binary program
 		byte 11,16,10,0,158,"4","1","0","9",0,0,0  ; 10 SYS4109
 
 start
-
+		; we don't return to basic, so use the full stack
 		ldx #255
 		txs
 
@@ -71,7 +100,6 @@ start
 		jsr clearscreen
 
 ; draw all the board
-
 		lda #5
 		sta row
 loopR
@@ -85,37 +113,35 @@ loopC
 		bpl loopR
 
 ; user's turn
-
 userturn
 
-
 ; get key pressed
-waitkey	jsr $ffe4
+waitkey	jsr GETIN
 		cmp #0
 		beq waitkey
 
-		cmp #49
+		cmp #49  ; '1'
 		bmi wrongkey
-		cmp #56
+		cmp #56  ; '8'
 		bpl wrongkey
 		sec
-		sbc #49
+		sbc #49  ; convert to 0..6
 		sta column
 		tax
-		lda freerow,x
+		lda freerow,x  ; free row for that column
 		sta row
-		bmi wrongkey
+		bmi wrongkey  ; if row is negatice, column is full
 		getptr
 		lda #1
-		sta board,x
+		sta board,x  ; write 1 (human) in that position
 		ldx column
-		dec freerow,x
-		jsr drawSlot
+		dec freerow,x  ; update freerow
+		jsr drawSlot   ; draw new position
 		jmp cputurn
 wrongkey
 		lda 36879
 		eor #7
-		sta 36879
+		sta 36879  ; flash border color
 		ldx #32
 		jsr delay
 		lda 36879
@@ -124,29 +150,28 @@ wrongkey
 		jmp userturn
 
 
-
-
+; cpu's turn
 cputurn
-		; compute move
+		; compute move, final effect is setting row, column
 		SUBROUTINE
 		lda #maxdepth
-		sta depth
+		sta depth  ; recursion depth
 		lda #6
-		sta column
-loopcol
+		sta column  ; loop column from 6 to 0
+.loopcol
 		lda #2
-		sta color
-		jsr recursion
+		sta color  ; set color to 2 (cpu)
+		jsr recursion  ; start recursive routine, output = score
 		ldx column
 		lda score
-		sta colscores,x
+		sta colscores,x  ; set score of this column
 		dec column
-		bpl loopcol
+		bpl .loopcol
 
-		; compute max
-		lda colscores
-		sta tmp1
-		ldx #6
+		; compute max of column scores
+		lda colscores+6
+		sta tmp1  ; start with last value
+		ldx #5  ; loop through other values
 .loop1	lda colscores,x
 		cmp tmp1
 		bmi .l2
@@ -164,20 +189,17 @@ loopcol
 
 		ldx column
 		lda freerow,x
-		sta row
+		sta row  ; update mathing row
 
 		getptr
 		lda #2
-		sta board,x
+		sta board,x  ; write 2 (cpu) in that position
 		ldx column
-		dec freerow,x
-		jsr drawSlot
+		dec freerow,x  ; update freerow
+		jsr drawSlot  ; draw new position
 
 
 		jmp userturn
-
-
-		jmp hang
 
 
 
@@ -185,36 +207,40 @@ loopcol
 
 
 recursion
+		; input: column, depth, color (1 or 2)
+		; output: score for that column
+		; uses: row, color, depth, score, score2, tmp1
 		SUBROUTINE
 		ldx column
 		lda freerow,x
-		sta row
+		sta row  ; row matching this column
 		bpl .l1
-		lda  #scoreImpossible
+		lda  #scoreImpossible  ; if row negative, column is full
 		sta score
 		rts
 .l1
 		getptr
 		lda color
-		sta board,x
+		sta board,x  ; set position to color
 		ldx column
-		dec freerow,x
-		jsr computescore
+		dec freerow,x  ; update freerow
+		jsr computescore  ; compute score for this position
 		lda score
 		cmp #scoreRow4
 		bne .l2
 		clc
-		adc depth
+		adc depth  ; if score is 4 in a row, add depth to prefer earlier ones
 		sta score
+		; if depth == 1 or score >= scoreRow4, return with this score
 .l2		lda depth
 		cmp #1
-		beq .end
+		beq .trampoline  ; -> .end
 		lda score
 		cmp scoreRow4
-		bpl .end
+		bpl .trampoline  ; -> .end
 		lda #scoreImpossible
-		sta score2
-		lda #6
+		sta score2  ; init score2 with scoreImpossible
+		lda #6  ; iterate all columns to continue recursion
 		sta i
 .loopcol
 		; recursion
@@ -233,17 +259,17 @@ recursion
 		pha
 		lda i
 		pha
-		; call recursion
+		; call recursion with new data
 		lda i
-		sta column
-		dec depth
+		sta column  ; current column
+		dec depth  ; depth - 1
 		lda #3
-		clc
+		sec
 		sbc color
-		sta color
+		sta color  ; color = 3 - color (switch 1, 2)
 		jsr recursion
 		lda score
-		sta tmp1
+		sta tmp1  ; temporarily save score from deeper recursion
 		; restore local variables
 		pla
 		sta i
@@ -260,7 +286,7 @@ recursion
 		pla
 		sta row
 
-		lda score2
+		lda score2  ; update score2 if tmp1 (new score) > score2
 		cmp tmp1
 		bpl .l3
 		lda tmp1
@@ -270,19 +296,29 @@ recursion
 
 		lda score2
 		cmp #scoreImpossible
-		beq .end
-		cmp #scoreRow4
-		bmi .l4
+		beq .end  ; if new score is impossible, return current score
+		; check if score >= scoreRow4 or <= -scoreRow4, in that case return -score2
 		lda score2
-		bpl .l4
-		;bxxxx  ; TODO, signed comparison
+		bmi .l3a  ; if score2 negative, test <=-scoreRow4
+		cmp #scoreRow4
+		bpl .l3b  ; first case
+.l3a	lda #0  ; compute -score2
+		sec
+		sbc score2  ; -score2
+		cmp #scoreRow4
+		bpl .l3b  ; second case
+		jmp .l4  ; continue normally
+.trampoline	jmp .end
+.l3b
+		; score = -score2, then return
 		lda #0
 		sec
-		sbc score2  ; -score2, positive
+		sbc score2  ; -score2
 		cmp #scoreRow4
 		bmi .l4
 		sta score  ; score = -score2
 		jmp .end
+		; score -= score2
 .l4		lda score
 		sec
 		sbc score2
@@ -290,23 +326,22 @@ recursion
 .end
 		getptr
 		lda #0
-		sta board,x
+		sta board,x  ; restore empty position
 		ldx column
-		inc freerow,x
+		inc freerow,x  ; restore freerow
 		rts
 
 
 ; ----------------------------------------------------------------------
 
 computescore
+		; input: row, column, color (1 or 2)
+		; output: score for that position
+		; uses: score2
 		SUBROUTINE
-;		lda #scoreImpossible
-;		sta score
-;		rts
-		; TODO
 		lda #0
-		sta score
-		sta score2
+		sta score   ; will contain score for sequences of 2
+		sta score2  ; will contain score for sequences of 3
 		lda row
 		pha
 		lda column
@@ -318,21 +353,21 @@ computescore
 		sta column
 		lda #1
 		sta incr
-		jsr computesequencesub
+		jsr computesequencesub  ; compute maxgroup
 		lda maxgroup
 		cmp #4
 		bne .l1a
 		lda #scoreRow4
-		sta score
+		sta score  ; if 4 in a row, don't try other directions
 		jmp .end
-.l1a	cmp #3
+.l1a	cmp #3  ; else if maxgroup==3, add its value to score2
 		bne .l2a
 		lda score2
 		clc
 		adc #scoreRow3
 		sta score2
 		jmp .l3a
-.l2a	cmp #2
+.l2a	cmp #2  ; else if maxgroup==2, add its value to score
 		bne .l3a
 		lda score
 		clc
@@ -422,7 +457,7 @@ computescore
 		clc
 		adc #scoreRow2
 		sta score
-.l3d
+.l3d	; final: if score2 != 0, assign it to score
 		lda score2
 		beq .end
 		sta score
@@ -437,35 +472,35 @@ computescore
 ; ----------------------------------------------------------------------
 
 computesequencesub
+		; input: row, column, color (1 or 2), incr
+		; output: max sequence of color and 0 for that position and direction
+		; uses: tmp1
 		SUBROUTINE
-;		lda #2
-;		sta maxgroup
-;		rts
-		; TODO
 		lda #0
 		sta maxgroup
 		getptr
-		stx ptr
-		lda #3
+		stx ptr  ; save start position
+		lda #3  ; loop g: 3..0 (search for 4 sequences)
 		sta g
 .loop1	lda #0
 		sta tmp1
-		ldx ptr
+		ldx ptr  ; starting position
 		lda #3
-		sta i
+		sta i  ; loop i: 3..0 (search 4-position sequence)
 .loop2	lda board,x
-		cmp color
+		cmp color  ; if position == color
 		bne .l1
 		inc tmp1
 		jmp .l2
-.l1		cmp #0
+.l1		cmp #0  ; else if not 0 reset counter
 		beq	.l2
+		lda #0
 		sta tmp1
-		jmp .endl2
+		jmp .endl2  ; exit inner loop
 .l2		txa
 		clc
 		adc incr
-		tax
+		tax  ; add incr to x
 
 		dec i
 		bpl .loop2
@@ -473,15 +508,15 @@ computesequencesub
 		lda tmp1
 		cmp maxgroup
 		bmi .l3
-		sta maxgroup
+		sta maxgroup  ; if tmp1 > maxgroup, update maxgroup
 .l3		lda maxgroup
 		cmp #4
 		bne .l4
-		rts
+		rts  ; if maxgroup == 4, return
 .l4		lda ptr
 		clc
 		adc incr
-		sta ptr
+		sta ptr  ; update start position
 
 		dec g
 		bpl .loop1
@@ -491,8 +526,8 @@ computesequencesub
 ; ----------------------------------------------------------------------
 
 drawSlot
-		SUBROUTINE
 		; input: row, column
+		SUBROUTINE
 		getptr
 		lda board,x
 		tax
@@ -539,8 +574,8 @@ drawSlot
 ; ----------------------------------------------------------------------
 
 delay
-		SUBROUTINE
 		; input : x
+		SUBROUTINE
 .loop1	ldy #255
 .loop2	dey
 		bne .loop2
@@ -618,9 +653,9 @@ initvars
 		bne .loop3
 		; init freerow
 		lda #5
-		ldy #7
-.loop5	dey
-		sta freerow,y
+		ldx #7
+.loop5	dex
+		sta freerow,x
 		bne .loop5
 
 		rts
