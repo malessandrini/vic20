@@ -32,12 +32,11 @@ depth		ds 1
 score		ds 1
 score2		ds 1
 tmp1		ds 1
-i			ds 1
-g			ds 1
 colscores	ds 7
 maxgroup	ds 1
 incr		ds 1
 ptr			ds 1
+tot			ds 1  ; number of moves
 
 ;
 zplimit
@@ -96,6 +95,7 @@ start
 		ldx #255
 		txs
 
+		jsr initonce
 		jsr initvars
 		jsr clearscreen
 
@@ -114,7 +114,7 @@ loopC
 
 ; user's turn
 userturn
-
+		SUBROUTINE
 ; get key pressed
 waitkey	jsr GETIN
 		cmp #0
@@ -136,8 +136,12 @@ waitkey	jsr GETIN
 		sta board,x  ; write 1 (human) in that position
 		ldx column
 		dec freerow,x  ; update freerow
+		inc tot
 		jsr drawSlot   ; draw new position
-		jmp cputurn
+
+		jsr checkfinish
+		bne cputurn
+		jmp hang
 wrongkey
 		lda 36879
 		eor #7
@@ -147,13 +151,14 @@ wrongkey
 		lda 36879
 		eor #7
 		sta 36879
-		jmp userturn
+trampln	jmp userturn
+
 
 
 ; cpu's turn
 cputurn
-		; compute move, final effect is setting row, column
 		SUBROUTINE
+		; compute move, final effect is setting row, column
 		lda #maxdepth
 		sta depth  ; recursion depth
 		lda #6
@@ -196,10 +201,12 @@ cputurn
 		sta board,x  ; write 2 (cpu) in that position
 		ldx column
 		dec freerow,x  ; update freerow
+		inc tot
 		jsr drawSlot  ; draw new position
 
-
-		jmp userturn
+		jsr checkfinish
+		bne trampln
+		jmp hang
 
 
 
@@ -240,8 +247,7 @@ recursion
 		bpl .trampoline  ; -> .end
 		lda #scoreImpossible
 		sta score2  ; init score2 with scoreImpossible
-		lda #6  ; iterate all columns to continue recursion
-		sta i
+		ldy #6  ; iterate all columns to continue recursion
 .loopcol
 		; recursion
 		; save local variables
@@ -257,11 +263,10 @@ recursion
 		pha
 		lda depth
 		pha
-		lda i
+		tya
 		pha
 		; call recursion with new data
-		lda i
-		sta column  ; current column
+		sty column  ; current column
 		dec depth  ; depth - 1
 		lda #3
 		sec
@@ -272,7 +277,7 @@ recursion
 		sta tmp1  ; temporarily save score from deeper recursion
 		; restore local variables
 		pla
-		sta i
+		tay
 		pla
 		sta depth
 		pla
@@ -291,7 +296,7 @@ recursion
 		bpl .l3
 		lda tmp1
 		sta score2
-.l3		dec i
+.l3		dey
 		bpl .loopcol
 
 		lda score2
@@ -480,13 +485,11 @@ computesequencesub
 		sta maxgroup
 		getptr
 		stx ptr  ; save start position
-		lda #3  ; loop g: 3..0 (search for 4 sequences)
-		sta g
+		ldy #3  ; loop y: 3..0 (search for 4 sequences)
 .loop1	lda #0
 		sta tmp1
 		ldx ptr  ; starting position
-		lda #3
-		sta i  ; loop i: 3..0 (search 4-position sequence)
+		ldy #3  ; loop y: 3..0 (search 4-position sequence)
 .loop2	lda board,x
 		cmp color  ; if position == color
 		bne .l1
@@ -502,7 +505,7 @@ computesequencesub
 		adc incr
 		tax  ; add incr to x
 
-		dec i
+		dey
 		bpl .loop2
 .endl2
 		lda tmp1
@@ -518,8 +521,52 @@ computesequencesub
 		adc incr
 		sta ptr  ; update start position
 
-		dec g
+		dey
 		bpl .loop1
+		rts
+
+
+; ----------------------------------------------------------------------
+
+checkfinish
+		; input: row, column
+		; output: Z=1 if finished
+		; uses: color
+		SUBROUTINE
+		lda #1
+		sta color
+		jsr victory
+		bne .l1
+		lda #0
+		rts
+.l1		inc color
+		jsr victory
+		bne .l2
+		lda #0
+		rts
+.l2		lda tot
+		cmp #42  ; board full?
+		bne .l3
+		lda #0
+		rts
+.l3
+		lda #1  ; Z = 0
+		rts
+
+
+; ----------------------------------------------------------------------
+
+victory
+		; input: row, column, color
+		; output: Z=1 if victory
+		SUBROUTINE
+		jsr computescore
+		lda score
+		cmp #scoreRow4
+		bpl .l1
+		lda #1  ; Z = 0
+		rts
+.l1		lda #0
 		rts
 
 
@@ -621,15 +668,8 @@ clearscreen
 initvars
 		SUBROUTINE
 		clc
-		lda #1
-		sta manstart
-		lda #0  ; black
-		sta clrs
-		lda #2  ; red
-		sta clrs+1
-		lda #7  ; yellow
-		sta clrs+2
-
+		lda #0
+		sta tot
 		; setup board
 		lda #$ff
 		ldy #boardsize
@@ -661,5 +701,25 @@ initvars
 		rts
 
 
-hang	jmp hang
+; ----------------------------------------------------------------------
+
+initonce
+		SUBROUTINE
+		lda #1
+		sta manstart
+		lda #0  ; black
+		sta clrs
+		lda #2  ; red
+		sta clrs+1
+		lda #7  ; yellow
+		sta clrs+2
+		rts
+
+
+; ----------------------------------------------------------------------
+
+hang	lda 36879
+		eor #1
+		sta 36879  ; border color
+		jmp .
 
