@@ -69,7 +69,7 @@ board		ds boardsize
 
 
 		; macro to set x to correct offset in board, given row and column
-		mac getptr
+		mac getptr  ; 16 * row + column + #boardstart
 			lda row
 			clc
 			rol
@@ -79,6 +79,15 @@ board		ds boardsize
 			adc column
 			adc #boardstart
 			tax
+		endm
+
+
+		; macro to set x and y to correct values to call printstring
+		; warning: only works for the first 255 characters (due to offset in x)
+		mac print  ; r, c, str
+			ldx #22*{1}+{2}
+			ldy #{3}-strings
+			jsr printstring
 		endm
 
 
@@ -98,6 +107,8 @@ start
 		jsr initonce
 		jsr initvars
 		jsr clearscreen
+
+		print 6, 5, strhello
 
 ; draw all the board
 		lda #5
@@ -151,6 +162,7 @@ wrongkey
 		lda 36879
 		eor #7
 		sta 36879
+		print 6, 4, strspc14
 trampln	jmp userturn
 
 
@@ -723,3 +735,24 @@ hang	lda 36879
 		sta 36879  ; border color
 		jmp .
 
+
+; ----------------------------------------------------------------------
+
+strings
+strhello	dc 8, 5, 12, 12, 15, 0
+strspc14	ds 14, 32
+			dc 0
+
+
+; ----------------------------------------------------------------------
+
+printstring
+		; input: x=offset to video memory, y=offset to strings
+		SUBROUTINE
+.l1		lda strings,y
+		beq .end
+		sta video,x
+		inx
+		iny
+		jmp .l1
+.end	rts
