@@ -37,6 +37,7 @@ maxgroup	ds 1
 incr		ds 1
 ptr			ds 1
 tot			ds 1  ; number of moves
+i			ds 1
 
 ;
 zplimit
@@ -343,6 +344,7 @@ recursion
 		bmi .l3a  ; if score2 negative, test <=-scoreRow4
 		cmp #scoreRow4
 		bpl .l3b  ; first case
+		jmp .l4  ; continue normally
 .l3a	lda #0  ; compute -score2
 		sec
 		sbc score2  ; -score2
@@ -355,8 +357,6 @@ recursion
 		lda #0
 		sec
 		sbc score2  ; -score2
-		cmp #scoreRow4
-		bmi .l4
 		sta score  ; score = -score2
 		jmp .end
 		; score -= score2
@@ -514,14 +514,15 @@ computescore
 
 computesequencesub
 		; input: row, column, color (1 or 2), incr
-		; output: max sequence of color and 0 for that position and direction
-		; uses: tmp1
+		; output: maxgroup: max sequence of color and 0 for that position and direction
+		; uses: tmp1, i
 		SUBROUTINE
 		lda #0
 		sta maxgroup
 		getptr
 		stx ptr  ; save start position
-		ldy #3  ; loop y: 3..0 (search for 4 sequences)
+		lda #3
+		sta i  ; loop i: 3..0 (search for 4 sequences)
 .loop1	lda #0
 		sta tmp1
 		ldx ptr  ; starting position
@@ -557,7 +558,7 @@ computesequencesub
 		adc incr
 		sta ptr  ; update start position
 
-		dey
+		dec i
 		bpl .loop1
 		rts
 
