@@ -127,10 +127,7 @@ loopC
 userturn
 		SUBROUTINE
 ; get key pressed
-waitkey	jsr GETIN
-		cmp #0
-		beq waitkey
-
+		jsr getchar
 		cmp #49  ; '1'
 		bmi wrongkey
 		cmp #56  ; '8'
@@ -606,26 +603,30 @@ drawSlot
 		dex
 		jmp .draw2
 .drawOk	tay
-		lda #85
+		lda #0 ;#85
 		sta video+off,y
 		lda color
+		ora #8  ; 4-color mode
 		sta vcolor+off,y
 		iny
-		lda #73
+		lda #1 ;#73
 		sta video+off,y
 		lda color
+		ora #8
 		sta vcolor+off,y
 		tya
 		adc #21
 		tay
-		lda #74
+		lda #2 ;#74
 		sta video+off,y
 		lda color
+		ora #8
 		sta vcolor+off,y
 		iny
-		lda #75
+		lda #3 ;#75
 		sta video+off,y
 		lda color
+		ora #8
 		sta vcolor+off,y
 		rts
 
@@ -645,10 +646,25 @@ delay
 
 ; ----------------------------------------------------------------------
 
+getchar
+		; output: A
+		; empty keyboard buffer, than wait for new char
+		SUBROUTINE
+.l1		jsr GETIN
+		cmp #0
+		bne .l1
+.l2		jsr GETIN
+		cmp #0
+		beq .l2
+		rts
+
+
+; ----------------------------------------------------------------------
+
 clearscreen
 		SUBROUTINE
 ;  space character
-		lda #32
+		lda #32+128
 
 		ldy #253
 .loop1	dey
@@ -661,7 +677,7 @@ clearscreen
 		bne .loop2
 
 ; color
-		lda #5
+		lda #6
 
 		ldy #253
 .loop3	dey
@@ -717,9 +733,31 @@ initvars
 
 initonce
 		SUBROUTINE
+		; copy user defined chars to proper address
+		ldx #[udcend-udcstart]
+		ldy #0
+.l1		lda udcstart,y
+		sta 7168,y
+		iny
+		dex
+		bne .l1
+		; screen and border color
+		lda #27
+		sta 36879
+		; auxiliary color (blue) for 4-color chars (high nibble) + audio volume (low nibble)
+		lda #6*16
+		sta 36878
+		; disable shift+commodore character switch
+		lda 657
+		ora #128
+		sta 657
+		; activate user defined chars
+		lda #255
+		sta 36869
+		; other variables
 		lda #1
 		sta manstart
-		lda #0  ; black
+		lda #1  ; white
 		sta clrs
 		lda #2  ; red
 		sta clrs+1
@@ -739,8 +777,8 @@ hang	lda 36879
 ; ----------------------------------------------------------------------
 
 strings
-strhello	dc 8, 5, 12, 12, 15, 0
-strspc14	ds 14, 32
+strhello	dc 8+128, 5+128, 12+128, 12+128, 15+128, 4, 5, 0
+strspc14	ds 14, 32+128
 			dc 0
 
 
@@ -756,3 +794,86 @@ printstring
 		iny
 		jmp .l1
 .end	rts
+
+
+
+; ----------------------------------------------------------------------
+; user defined chars
+
+udcstart
+
+; characters for board positions are in 4-color mode,
+; with double-width pixels. Colors are:
+; 00 = screen, 01 = border, 10 = char, 11 = aux (blue)
+
+		; 0, top-left
+		dc %11111111
+		dc %11111111
+		dc %11111010
+		dc %11111010
+		dc %11101010
+		dc %11101010
+		dc %11101010
+		dc %11101010
+
+		; 1, top-right
+		dc %11111111
+		dc %11111111
+		dc %10101111
+		dc %10101111
+		dc %10101011
+		dc %10101011
+		dc %10101011
+		dc %10101011
+
+		; 2, bottom-left
+		dc %11101010
+		dc %11101010
+		dc %11101010
+		dc %11101010
+		dc %11111010
+		dc %11111010
+		dc %11111111
+		dc %11111111
+
+		; 3, bottom-right
+		dc %10101011
+		dc %10101011
+		dc %10101011
+		dc %10101011
+		dc %10101111
+		dc %10101111
+		dc %11111111
+		dc %11111111
+
+; normal characters (8x8)
+
+		; 4, down arrow, left half
+		dc %00000001
+		dc %00000001
+		dc %00000001
+		dc %00000001
+		dc %00000111
+		dc %00000011
+		dc %00000001
+		dc %00000000
+
+		; 5, down arrow, right half
+		dc %10000000
+		dc %10000000
+		dc %10000000
+		dc %10000000
+		dc %11100000
+		dc %11000000
+		dc %10000000
+		dc %00000000
+
+udcend
+
+
+;
+codelimit
+		; check safe limit of code area
+		IF codelimit > 7168
+			ERR
+		ENDIF
