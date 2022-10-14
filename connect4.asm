@@ -108,8 +108,6 @@ start
 		jsr initvars
 		jsr clearscreen
 
-		print 6, 5, strhello
-
 ; draw all the board
 		lda #5
 		sta row
@@ -123,22 +121,49 @@ loopC
 		dec row
 		bpl loopR
 
+		lda #3
+		sta column  ; start position for arrow
+
 ; user's turn
 userturn
 		SUBROUTINE
+		jsr drawarrow
 ; get key pressed
 		jsr getchar
+
+		cmp #$1d  ; right
+		beq moveright
+		cmp #$9d  ; left
+		beq moveleft
+		cmp #$11  ; down, use as left too
+		beq moveleft
+		cmp #$20  ; space
+		beq setmove
+		; if not one of the previous, must be a digit (1..7)
 		cmp #49  ; '1'
-		bmi wrongkey
+		bmi userturn
 		cmp #56  ; '8'
-		bpl wrongkey
+		bpl userturn
 		sec
 		sbc #49  ; convert to 0..6
 		sta column
-		tax
+		jmp setmove
+moveright
+		lda column
+		cmp #6
+		beq userturn
+		inc column
+		jmp userturn
+moveleft
+		lda column
+		beq userturn
+		dec column
+		jmp userturn
+setmove
+		ldx column
 		lda freerow,x  ; free row for that column
 		sta row
-		bmi wrongkey  ; if row is negatice, column is full
+		bmi wrongcol  ; if row is negative, column is full
 		getptr
 		lda #1
 		sta board,x  ; write 1 (human) in that position
@@ -150,7 +175,7 @@ userturn
 		jsr checkfinish
 		bne cputurn
 		jmp hang
-wrongkey
+wrongcol
 		lda 36879
 		eor #7
 		sta 36879  ; flash border color
@@ -159,7 +184,6 @@ wrongkey
 		lda 36879
 		eor #7
 		sta 36879
-		print 6, 4, strspc14
 trampln	jmp userturn
 
 
@@ -168,6 +192,7 @@ trampln	jmp userturn
 cputurn
 		SUBROUTINE
 		; compute move, final effect is setting row, column
+		jsr drawwait
 		lda #maxdepth
 		sta depth  ; recursion depth
 		lda #6
@@ -211,6 +236,7 @@ cputurn
 		ldx column
 		dec freerow,x  ; update freerow
 		inc tot
+		jsr drawarrow
 		jsr drawSlot  ; draw new position
 
 		jsr checkfinish
@@ -241,6 +267,7 @@ recursion
 		ldx column
 		dec freerow,x  ; update freerow
 		jsr computescore  ; compute score for this position
+		jsr animatewait
 		lda score
 		cmp #scoreRow4
 		bne .l2
@@ -633,6 +660,62 @@ drawSlot
 
 ; ----------------------------------------------------------------------
 
+drawarrow
+		; input: column (negative for no arrow)
+		SUBROUTINE
+		; delete row
+		lda #32+128
+		ldx #0
+		ldy #14
+.l1		sta video+off-22,x
+		inx
+		dey
+		bne .l1
+		; draw arrow
+		lda column
+		clc
+		rol  ; column*2
+		tax
+		lda #4
+		sta video+off-22,x
+		inx
+		lda #5
+		sta video+off-22,x
+		rts
+
+
+; ----------------------------------------------------------------------
+
+drawwait
+		SUBROUTINE
+		lda #69+128
+		ldx #0
+		ldy #14
+.l1		sta video+off-22,x
+		inx
+		eor #3
+		dey
+		bne .l1
+		rts
+
+
+; ----------------------------------------------------------------------
+
+animatewait
+		SUBROUTINE
+		ldx #0
+		ldy #14
+.l1		lda video+off-22,x
+		eor #3
+		sta video+off-22,x
+		inx
+		dey
+		bne .l1
+		rts
+
+
+; ----------------------------------------------------------------------
+
 delay
 		; input : x
 		SUBROUTINE
@@ -778,7 +861,6 @@ hang	lda 36879
 
 strings
 strhello	dc 8+128, 5+128, 12+128, 12+128, 15+128, 4, 5, 0
-strspc14	ds 14, 32+128
 			dc 0
 
 
