@@ -247,14 +247,12 @@ cputurn
 		jmp hang
 
 
-
 ; ----------------------------------------------------------------------
-
 
 recursion
 		; input: column, depth, color (1 or 2)
 		; output: score for that column
-		; uses: row, color, depth, score, score2, tmp1
+		; uses: row, color, depth, score2, tmp1
 		; note: scores have an offset of 128 (zero at 128) to avoid signed comparison problems
 		SUBROUTINE
 		ldx column
@@ -355,13 +353,15 @@ recursion
 		; score = -score2, then return
 		lda #0
 		sec
-		sbc score2  ; -score2
+		sbc score2  ; -score2, still works with 128 offset
 		sta score  ; score = -score2
 		jmp .end
 		; score -= score2
 .l4		lda score
 		sec
 		sbc score2
+		clc
+		adc #128
 		sta score
 .end
 		getptr
