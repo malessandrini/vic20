@@ -142,9 +142,9 @@ userturn
 		beq setmove
 		; if not one of the previous, must be a digit (1..7)
 		cmp #49  ; '1'
-		bmi userturn
+		bcc userturn
 		cmp #56  ; '8'
-		bpl userturn
+		bcs userturn
 		sec
 		sbc #49  ; convert to 0..6
 		sta column
@@ -214,7 +214,7 @@ cputurn
 		ldx #5  ; loop through other values
 .loop1	lda colscores,x
 		cmp tmp1
-		bmi .l2
+		bcc .l2
 		sta tmp1
 .l2		dex
 		bpl .loop1
@@ -253,12 +253,13 @@ recursion
 		; input: column, depth, color (1 or 2)
 		; output: score for that column
 		; uses: row, color, depth, score, score2, tmp1
+		; note: scores have an offset of 128 (zero at 128) to avoid signed comparison problems
 		SUBROUTINE
 		ldx column
 		lda freerow,x
 		sta row  ; row matching this column
 		bpl .l1
-		lda  #scoreImpossible  ; if row negative, column is full
+		lda  #128+scoreImpossible  ; if row negative, column is full
 		sta score
 		rts
 .l1
@@ -270,7 +271,7 @@ recursion
 		jsr computescore  ; compute score for this position
 		jsr animatewait
 		lda score
-		cmp #scoreRow4
+		cmp #128+scoreRow4
 		bne .l2
 		clc
 		adc depth  ; if score is 4 in a row, add depth to prefer earlier ones
@@ -280,9 +281,9 @@ recursion
 		cmp #1
 		beq .trampoline  ; -> .end
 		lda score
-		cmp scoreRow4
-		bpl .trampoline  ; -> .end
-		lda #scoreImpossible
+		cmp #128+scoreRow4
+		bcs .trampoline  ; -> .end
+		lda #128+scoreImpossible
 		sta score2  ; init score2 with scoreImpossible
 		ldy #6  ; iterate all columns to continue recursion
 .loopcol
@@ -330,26 +331,22 @@ recursion
 
 		lda score2  ; update score2 if tmp1 (new score) > score2
 		cmp tmp1
-		bpl .l3
+		bcs .l3
 		lda tmp1
 		sta score2
 .l3		dey
 		bpl .loopcol
 
 		lda score2
-		cmp #scoreImpossible
+		cmp #128+scoreImpossible
 		beq .end  ; if new score is impossible, return current score
-		; check if score >= scoreRow4 or <= -scoreRow4, in that case return -score2
+		; check if score2 >= scoreRow4 or <= -scoreRow4, in that case return -score2
 		lda score2
-		bmi .l3a  ; if score2 negative, test <=-scoreRow4
-		cmp #scoreRow4
-		bpl .l3b  ; first case
-		jmp .l4  ; continue normally
-.l3a	lda #0  ; compute -score2
-		sec
-		sbc score2  ; -score2
-		cmp #scoreRow4
-		bpl .l3b  ; second case
+		cmp #128+scoreRow4
+		bcs .l3b  ; first case
+.l3a	lda #128-scoreRow4
+		cmp score2
+		bcs .l3b  ; second case
 		jmp .l4  ; continue normally
 .trampoline	jmp .end
 .l3b
@@ -379,8 +376,9 @@ computescore
 		; input: row, column, color (1 or 2)
 		; output: score for that position
 		; uses: score2
+		; note: scores have an offset of 128 (zero at 128) to avoid signed comparison problems
 		SUBROUTINE
-		lda #0
+		lda #128
 		sta score   ; will contain score for sequences of 2
 		sta score2  ; will contain score for sequences of 3
 		lda row
@@ -398,7 +396,7 @@ computescore
 		lda maxgroup
 		cmp #4
 		bne .l1a
-		lda #scoreRow4
+		lda #128+scoreRow4
 		sta score  ; if 4 in a row, don't try other directions
 		jmp .end
 .l1a	cmp #3  ; else if maxgroup==3, add its value to score2
@@ -426,7 +424,7 @@ computescore
 		lda maxgroup
 		cmp #4
 		bne .l1b
-		lda #scoreRow4
+		lda #128+scoreRow4
 		sta score
 		jmp .end
 .l1b	cmp #3
@@ -454,7 +452,7 @@ computescore
 		lda maxgroup
 		cmp #4
 		bne .l1c
-		lda #scoreRow4
+		lda #128+scoreRow4
 		sta score
 		jmp .end
 .l1c	cmp #3
@@ -482,7 +480,7 @@ computescore
 		lda maxgroup
 		cmp #4
 		bne .l1d
-		lda #scoreRow4
+		lda #128+scoreRow4
 		sta score
 		jmp .end
 .l1d	cmp #3
@@ -500,6 +498,7 @@ computescore
 		sta score
 .l3d	; final: if score2 != 0, assign it to score
 		lda score2
+		cmp #128
 		beq .end
 		sta score
 .end
@@ -547,7 +546,7 @@ computesequencesub
 .endl2
 		lda tmp1
 		cmp maxgroup
-		bmi .l3
+		bcc .l3
 		sta maxgroup  ; if tmp1 > maxgroup, update maxgroup
 .l3		lda maxgroup
 		cmp #4
@@ -599,8 +598,8 @@ victory
 		SUBROUTINE
 		jsr computescore
 		lda score
-		cmp #scoreRow4
-		bpl .l1
+		cmp #128+scoreRow4
+		bcs .l1
 		lda #1  ; Z = 0
 		rts
 .l1		lda #0
