@@ -85,8 +85,8 @@ board		ds boardsize
 
 		; macro to set x and y to correct values to call printstring
 		; warning: only works for the first 255 characters (due to offset in x)
-		mac print  ; r, c, str
-			ldx #22*{1}+{2}
+		mac print  ; off, str
+			ldx #off
 			ldy #{3}-strings
 			jsr printstring
 		endm
@@ -207,6 +207,8 @@ cputurn
 		sta colscores,x  ; set score of this column
 		dec column
 		bpl .loopcol
+
+		jsr debuginfo
 
 		; compute max of column scores
 		lda colscores+6
@@ -496,7 +498,8 @@ computescore
 		clc
 		adc #scoreRow2
 		sta score
-.l3d	; final: if score2 != 0, assign it to score
+.l3d
+		; final: if score2 != 0, assign it to score
 		lda score2
 		cmp #128
 		beq .end
@@ -861,7 +864,7 @@ hang	lda 36879
 
 strings
 strhello	dc 8+128, 5+128, 12+128, 12+128, 15+128, 4, 5, 0
-			dc 0
+hexdigits	dc 48+128, 49+128, 50+128, 51+128, 52+128, 53+128, 54+128, 55+128, 56+128, 57+128, 1+128, 2+128, 3+128, 4+128, 5+128, 6+128
 
 
 ; ----------------------------------------------------------------------
@@ -877,6 +880,36 @@ printstring
 		jmp .l1
 .end	rts
 
+
+; ----------------------------------------------------------------------
+
+debuginfo
+		SUBROUTINE
+		ldy #0
+		sty i
+.ld		lda colscores,y
+		lsr
+		lsr
+		lsr
+		lsr
+		tax
+		lda hexdigits,x
+		ldx i
+		sta video,x
+		inx
+		stx i
+		lda colscores,y
+		and #$0f
+		tax
+		lda hexdigits,x
+		ldx i
+		sta video,x
+		inx
+		stx i
+		iny
+		cpy #7
+		bne .ld
+		rts
 
 
 ; ----------------------------------------------------------------------
