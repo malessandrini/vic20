@@ -93,7 +93,9 @@ board		ds boardsize
 		endm
 
 
-; code area
+; ----------------------------------------------------------------------
+
+; start of code
 
 		seg code
 		org 4097
@@ -107,6 +109,48 @@ start
 		txs
 
 		jsr initonce
+
+optionscreen
+		SUBROUTINE
+		jsr clearscreen
+		prints 22*3+1, strhumanstarts
+		prints 22*5+1, strhumancolor
+		prints 22*8+1, strspacestart
+		ldx #'Y+64
+		lda manstart
+		bne .l1
+		ldx #'N+64
+.l1		stx video+22*3+20
+		ldx #'R+64
+		lda clrs+1  ; human color
+		cmp #2
+		beq .l2
+		ldx #'Y+64
+.l2		stx video+22*5+20
+		jsr getchar
+		cmp #'S
+		beq optstart
+		cmp #'C
+		beq optcolor
+		cmp #32
+		beq startgame
+		jmp optionscreen
+optstart
+		lda #1
+		eor manstart
+		sta manstart
+		jmp optionscreen
+optcolor
+		lda #9
+		sec
+		sbc clrs+1
+		sta clrs+1
+		lda #9
+		sbc clrs+2
+		sta clrs+2
+		jmp optionscreen
+
+startgame
 		jsr initvars
 		jsr clearscreen
 
@@ -125,6 +169,9 @@ loopC
 
 		lda #3
 		sta column  ; start position for arrow
+
+		lda manstart
+		beq cputurn
 
 ; user's turn
 userturn
@@ -176,7 +223,7 @@ setmove
 
 		jsr checkfinish
 		bne cputurn
-		jmp hang
+		jmp endgame
 wrongcol
 		lda 36879
 		eor #7
@@ -207,8 +254,7 @@ cputurn
 		dec column
 		bpl .loopcol
 
-		jsr debuginfo
-
+		;jsr debuginfo
 		; compute max of column scores
 		lda colscores+6
 		sta tmp1  ; start with last value
@@ -243,8 +289,17 @@ cputurn
 
 		jsr checkfinish
 		bne trampln
-		jmp hang
+		jmp endgame
 
+endgame
+		SUBROUTINE
+		lda 36879
+		eor #1
+		sta 36879  ; border color
+.l1		jsr getchar
+		cmp #32
+		bne .l1
+		jmp optionscreen
 
 ; ----------------------------------------------------------------------
 
@@ -576,19 +631,19 @@ checkfinish
 		sta color
 		jsr victory
 		bne .l1
-		prints off-44+3, stryouwin
+		prints off-66+3, stryouwin
 		lda #0
 		rts
 .l1		inc color
 		jsr victory
 		bne .l2
-		prints off-44+4, striwin
+		prints off-66+4, striwin
 		lda #0
 		rts
 .l2		lda tot
 		cmp #42  ; board full?
 		bne .l3
-		prints off-44+5, strdraw
+		prints off-66+5, strdraw
 		lda #0
 		rts
 .l3
@@ -753,6 +808,9 @@ getchar
 
 clearscreen
 		SUBROUTINE
+		; screen and border color
+		lda #27
+		sta 36879
 ;  space character
 		lda #32+128
 
@@ -831,9 +889,6 @@ initonce
 		iny
 		dex
 		bne .l1
-		; screen and border color
-		lda #27
-		sta 36879
 		; auxiliary color (blue) for 4-color chars (high nibble) + audio volume (low nibble)
 		lda #6*16
 		sta 36878
@@ -867,11 +922,13 @@ hang	lda 36879
 ; ----------------------------------------------------------------------
 
 strings
-strhello	dc 8+128, 5+128, 12+128, 12+128, 15+128, 4, 5, 0
 striwin		dc 9+128, 32+128, 23+128,9+128, 14+128, 33+128, 0
 stryouwin	dc 25+128, 15+128, 21+128, 32+128, 23+128, 9+128, 14+128, 33+128, 0
 strdraw		dc 4+128, 18+128, 1+128, 23+128, 0
-hexdigits	dc 48+128, 49+128, 50+128, 51+128, 52+128, 53+128, 54+128, 55+128, 56+128, 57+128, 1+128, 2+128, 3+128, 4+128, 5+128, 6+128
+strhumanstarts	dc 'S+64, 32+128, 45+128, 32+128, 'H+64, 'U+64, 'M+64, 'A+64, 'N+64, 32+128, 'S+64, 'T+64, 'A+64, 'R+64, 'T+64, 'S+64, 58+128, 0
+strhumancolor	dc  'C+64, 32+128, 45+128, 32+128,'H+64, 'U+64, 'M+64, 'A+64, 'N+64, 32+128, 'C+64, 'O+64, 'L+64, 'O+64, 'R+64, 58+128, 0
+strspacestart	dc 'S+64, 'P+64, 'A+64, 'C+64, 'E+64, 32+128, 45+128, 32+128, 'S+64, 'T+64, 'A+64, 'R+64, 'T+64, 0
+;hexdigits	dc 48+128, 49+128, 50+128, 51+128, 52+128, 53+128, 54+128, 55+128, 56+128, 57+128, 1+128, 2+128, 3+128, 4+128, 5+128, 6+128
 
 
 ; ----------------------------------------------------------------------
@@ -890,6 +947,7 @@ printstring
 
 ; ----------------------------------------------------------------------
 
+		IF 0
 debuginfo
 		SUBROUTINE
 		ldy #0
@@ -917,7 +975,7 @@ debuginfo
 		cpy #7
 		bne .ld
 		rts
-
+		ENDIF
 
 ; ----------------------------------------------------------------------
 ; user defined chars
