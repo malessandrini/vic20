@@ -11,7 +11,7 @@ scoreImpossible	equ -100
 scoreRow2	equ 1
 scoreRow3 	equ 5
 scoreRow4 	equ 21
-GETIN		equ $ffe4  ; kernal, read keyboard input
+GETIN		equ $ffe4  ; kernal, read keyboard input from queue
 
 
 ; variables in zero page
@@ -85,9 +85,9 @@ board		ds boardsize
 
 		; macro to set x and y to correct values to call printstring
 		; warning: only works for the first 255 characters (due to offset in x)
-		mac print  ; off, str
-			ldx #off
-			ldy #{3}-strings
+		mac prints  ; off, str
+			ldx #{1}
+			ldy #{2}-strings
 			jsr printstring
 		endm
 
@@ -187,8 +187,6 @@ wrongcol
 		sta 36879
 trampln	jmp userturn
 
-
-
 ; cpu's turn
 cputurn
 		SUBROUTINE
@@ -231,7 +229,7 @@ cputurn
 
 		ldx column
 		lda freerow,x
-		sta row  ; update mathing row
+		sta row  ; update matching row
 
 		getptr
 		lda #2
@@ -269,7 +267,7 @@ recursion
 		ldx column
 		dec freerow,x  ; update freerow
 		jsr computescore  ; compute score for this position
-		jsr animatewait
+		;jsr animatewait
 		lda score
 		cmp #128+scoreRow4
 		bne .l2
@@ -280,7 +278,10 @@ recursion
 .l2		lda depth
 		cmp #1
 		beq .trampoline  ; -> .end
-		lda score
+		cmp #3
+		bne .l2a
+		jsr animatewait
+.l2a	lda score
 		cmp #128+scoreRow4
 		bcs .trampoline  ; -> .end
 		lda #128+scoreImpossible
@@ -376,7 +377,7 @@ recursion
 
 computescore
 		; input: row, column, color (1 or 2)
-		; output: score for that position
+		; output: score for that position (positive)
 		; uses: score2
 		; note: scores have an offset of 128 (zero at 128) to avoid signed comparison problems
 		SUBROUTINE
@@ -396,6 +397,7 @@ computescore
 		sta incr
 		jsr computesequencesub  ; compute maxgroup
 		lda maxgroup
+		;sta $20  ; debug
 		cmp #4
 		bne .l1a
 		lda #128+scoreRow4
@@ -424,6 +426,7 @@ computescore
 		sta incr
 		jsr computesequencesub
 		lda maxgroup
+		;sta $21  ; debug
 		cmp #4
 		bne .l1b
 		lda #128+scoreRow4
@@ -452,6 +455,7 @@ computescore
 		sta incr
 		jsr computesequencesub
 		lda maxgroup
+		;sta $22  ; debug
 		cmp #4
 		bne .l1c
 		lda #128+scoreRow4
@@ -480,6 +484,7 @@ computescore
 		sta incr
 		jsr computesequencesub
 		lda maxgroup
+		;sta $23  ; debug
 		cmp #4
 		bne .l1d
 		lda #128+scoreRow4
@@ -576,16 +581,19 @@ checkfinish
 		sta color
 		jsr victory
 		bne .l1
+		prints off-44+3, stryouwin
 		lda #0
 		rts
 .l1		inc color
 		jsr victory
 		bne .l2
+		prints off-44+4, striwin
 		lda #0
 		rts
 .l2		lda tot
 		cmp #42  ; board full?
 		bne .l3
+		prints off-44+5, strdraw
 		lda #0
 		rts
 .l3
@@ -676,6 +684,7 @@ drawarrow
 		bne .l1
 		; draw arrow
 		lda column
+		bmi .end
 		clc
 		rol  ; column*2
 		tax
@@ -684,7 +693,7 @@ drawarrow
 		inx
 		lda #5
 		sta video+off-22,x
-		rts
+.end	rts
 
 
 ; ----------------------------------------------------------------------
@@ -864,6 +873,9 @@ hang	lda 36879
 
 strings
 strhello	dc 8+128, 5+128, 12+128, 12+128, 15+128, 4, 5, 0
+striwin		dc 9+128, 32+128, 23+128,9+128, 14+128, 33+128, 0
+stryouwin	dc 25+128, 15+128, 21+128, 32+128, 23+128, 9+128, 14+128, 33+128, 0
+strdraw		dc 4+128, 18+128, 1+128, 23+128, 0
 hexdigits	dc 48+128, 49+128, 50+128, 51+128, 52+128, 53+128, 54+128, 55+128, 56+128, 57+128, 1+128, 2+128, 3+128, 4+128, 5+128, 6+128
 
 
