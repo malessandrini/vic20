@@ -70,13 +70,14 @@ board		ds boardsize
 
 
 		; macro to set x to correct offset in board, given row and column
+		; warning: not sure if it works with negative row!
 		mac getptr  ; 16 * row + column + #boardstart
 			lda row
+			asl
+			asl
+			asl
+			asl
 			clc
-			rol
-			rol
-			rol
-			rol
 			adc column
 			adc #boardstart
 			tax
@@ -384,15 +385,12 @@ computescore
 		lda #128
 		sta score   ; will contain score for sequences of 2
 		sta score2  ; will contain score for sequences of 3
-		lda row
-		pha
-		lda column
-		pha
 		; horizontal
-		lda column
+		getptr
+		txa
 		sec
 		sbc #3
-		sta column
+		sta ptr
 		lda #1
 		sta incr
 		jsr computesequencesub  ; compute maxgroup
@@ -402,7 +400,7 @@ computescore
 		bne .l1a
 		lda #128+scoreRow4
 		sta score  ; if 4 in a row, don't try other directions
-		jmp .end
+		rts
 .l1a	cmp #3  ; else if maxgroup==3, add its value to score2
 		bne .l2a
 		lda score2
@@ -418,10 +416,11 @@ computescore
 		sta score
 .l3a
 		; diagonal 1
-		lda row
+		getptr
+		txa
 		sec
-		sbc #3
-		sta row
+		sbc #51
+		sta ptr
 		lda #17
 		sta incr
 		jsr computesequencesub
@@ -431,7 +430,7 @@ computescore
 		bne .l1b
 		lda #128+scoreRow4
 		sta score
-		jmp .end
+		rts
 .l1b	cmp #3
 		bne .l2b
 		lda score2
@@ -447,10 +446,11 @@ computescore
 		sta score
 .l3b
 		; vertical
-		lda column
-		clc
-		adc #3
-		sta column
+		getptr
+		txa
+		sec
+		sbc #48
+		sta ptr
 		lda #16
 		sta incr
 		jsr computesequencesub
@@ -460,7 +460,7 @@ computescore
 		bne .l1c
 		lda #128+scoreRow4
 		sta score
-		jmp .end
+		rts
 .l1c	cmp #3
 		bne .l2c
 		lda score2
@@ -476,10 +476,11 @@ computescore
 		sta score
 .l3c
 		; diagonal 2
-		lda column
-		clc
-		adc #3
-		sta column
+		getptr
+		txa
+		sec
+		sbc #45
+		sta ptr
 		lda #15
 		sta incr
 		jsr computesequencesub
@@ -489,7 +490,7 @@ computescore
 		bne .l1d
 		lda #128+scoreRow4
 		sta score
-		jmp .end
+		rts
 .l1d	cmp #3
 		bne .l2d
 		lda score2
@@ -510,24 +511,18 @@ computescore
 		beq .end
 		sta score
 .end
-		pla
-		sta column
-		pla
-		sta row
 		rts
 
 
 ; ----------------------------------------------------------------------
 
 computesequencesub
-		; input: row, column, color (1 or 2), incr
+		; input: ptr (offset in board), color (1 or 2), incr
 		; output: maxgroup: max sequence of color and 0 for that position and direction
-		; uses: tmp1, i
+		; uses: tmp1, i, ptr
 		SUBROUTINE
 		lda #0
 		sta maxgroup
-		getptr
-		stx ptr  ; save start position
 		lda #3
 		sta i  ; loop i: 3..0 (search for 4 sequences)
 .loop1	lda #0
