@@ -121,12 +121,10 @@ optionscreen
 		bne .l1
 		ldx #'N+64
 .l1		stx video+22*3+20
-		ldx #'R+64
+		lda #81+128
+		sta video+22*5+20
 		lda clrs+1  ; human color
-		cmp #2
-		beq .l2
-		ldx #'Y+64
-.l2		stx video+22*5+20
+		sta vcolor+22*5+20
 		jsr getchar
 		cmp #'S
 		beq optstart
@@ -141,13 +139,10 @@ optstart
 		sta manstart
 		jmp optionscreen
 optcolor
-		lda #9
-		sec
-		sbc clrs+1
-		sta clrs+1
-		lda #9
-		sbc clrs+2
-		sta clrs+2
+		ldx clrs+1
+		ldy clrs+2
+		stx clrs+2
+		sty clrs+1
 		jmp optionscreen
 
 startgame
@@ -171,7 +166,8 @@ loopC
 		sta column  ; start position for arrow
 
 		lda manstart
-		beq cputurn
+		bne userturn
+		jmp cputurn
 
 ; user's turn
 userturn
@@ -228,12 +224,16 @@ wrongcol
 		lda 36879
 		eor #7
 		sta 36879  ; flash border color
-		ldx #32
+		lda #150
+		sta 36876 ; buzz
+		ldx #64
 		jsr delay
 		lda 36879
 		eor #7
 		sta 36879
-trampln	jmp userturn
+		lda #0
+		sta 36876  ; stop sound
+		jmp userturn
 
 ; cpu's turn
 cputurn
@@ -279,17 +279,35 @@ cputurn
 		sta row  ; update matching row
 
 		getptr
+		stx ptr  ; save for animation
 		lda #2
 		sta board,x  ; write 2 (cpu) in that position
 		ldx column
 		dec freerow,x  ; update freerow
 		inc tot
-		jsr drawarrow
-		jsr drawSlot  ; draw new position
+		; animate new move
+		lda #4
+		sta i
+		lda #0
+		sta 36875  ; audio
+.l4		ldx ptr
+		lda board,x
+		eor #2
+		sta board,x
+		jsr drawSlot
+		lda 36875
+		eor #240
+		sta 36875
+		ldx #92
+		jsr delay
+		dec i
+		bne .l4
+		lda #0
+		sta 36875
 
 		jsr checkfinish
-		bne trampln
-		jmp endgame
+		beq endgame
+		jmp userturn
 
 endgame
 		SUBROUTINE
@@ -300,6 +318,7 @@ endgame
 		cmp #32
 		bne .l1
 		jmp optionscreen
+
 
 ; ----------------------------------------------------------------------
 
@@ -890,7 +909,7 @@ initonce
 		dex
 		bne .l1
 		; auxiliary color (blue) for 4-color chars (high nibble) + audio volume (low nibble)
-		lda #6*16
+		lda #6*16+15
 		sta 36878
 		; disable shift+commodore character switch
 		lda 657
