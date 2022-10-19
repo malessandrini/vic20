@@ -38,6 +38,7 @@ incr		ds 1
 ptr			ds 1
 tot			ds 1  ; number of moves
 i			ds 1
+sound		ds 1
 
 ;
 zplimit
@@ -115,7 +116,8 @@ optionscreen
 		jsr clearscreen
 		prints 22*3+1, strhumanstarts
 		prints 22*5+1, strhumancolor
-		prints 22*8+1, strspacestart
+		prints 22*7+1, strsound
+		prints 22*10+1, strspacestart
 		ldx #'Y+64
 		lda manstart
 		bne .l1
@@ -125,11 +127,18 @@ optionscreen
 		sta video+22*5+20
 		lda clrs+1  ; human color
 		sta vcolor+22*5+20
+		ldx #'Y+64
+		lda sound
+		bne .l2
+		ldx #'N+64
+.l2		stx video+22*7+20
 		jsr getchar
-		cmp #'S
+		cmp #'H
 		beq optstart
 		cmp #'C
 		beq optcolor
+		cmp #'S
+		beq optsound
 		cmp #32
 		beq startgame
 		jmp optionscreen
@@ -143,6 +152,14 @@ optcolor
 		ldy clrs+2
 		stx clrs+2
 		sty clrs+1
+		jmp optionscreen
+optsound
+		lda #1
+		eor sound
+		sta sound
+		lda #15
+		eor 36878
+		sta 36878
 		jmp optionscreen
 
 startgame
@@ -225,7 +242,7 @@ wrongcol
 		eor #7
 		sta 36879  ; flash border color
 		lda #150
-		sta 36876 ; buzz
+		sta 36876 ; sound
 		ldx #64
 		jsr delay
 		lda 36879
@@ -285,6 +302,7 @@ cputurn
 		ldx column
 		dec freerow,x  ; update freerow
 		inc tot
+		jsr drawarrow
 		; animate new move
 		lda #4
 		sta i
@@ -921,6 +939,7 @@ initonce
 		; other variables
 		lda #1
 		sta manstart
+		sta sound
 		lda #1  ; white
 		sta clrs
 		lda #2  ; red
@@ -944,8 +963,9 @@ strings
 striwin		dc 9+128, 32+128, 23+128,9+128, 14+128, 33+128, 0
 stryouwin	dc 25+128, 15+128, 21+128, 32+128, 23+128, 9+128, 14+128, 33+128, 0
 strdraw		dc 4+128, 18+128, 1+128, 23+128, 0
-strhumanstarts	dc 'S+64, 32+128, 45+128, 32+128, 'H+64, 'U+64, 'M+64, 'A+64, 'N+64, 32+128, 'S+64, 'T+64, 'A+64, 'R+64, 'T+64, 'S+64, 58+128, 0
+strhumanstarts	dc 'H+64, 32+128, 45+128, 32+128, 'H+64, 'U+64, 'M+64, 'A+64, 'N+64, 32+128, 'S+64, 'T+64, 'A+64, 'R+64, 'T+64, 'S+64, 58+128, 0
 strhumancolor	dc  'C+64, 32+128, 45+128, 32+128,'H+64, 'U+64, 'M+64, 'A+64, 'N+64, 32+128, 'C+64, 'O+64, 'L+64, 'O+64, 'R+64, 58+128, 0
+strsound		dc	'S+64, 32+128, 45+128, 32+128, 'S+64, 'O+64, 'U+64, 'N+64, 'D+64, 58+128, 0
 strspacestart	dc 'S+64, 'P+64, 'A+64, 'C+64, 'E+64, 32+128, 45+128, 32+128, 'S+64, 'T+64, 'A+64, 'R+64, 'T+64, 0
 ;hexdigits	dc 48+128, 49+128, 50+128, 51+128, 52+128, 53+128, 54+128, 55+128, 56+128, 57+128, 1+128, 2+128, 3+128, 4+128, 5+128, 6+128
 
