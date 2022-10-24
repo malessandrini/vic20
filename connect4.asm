@@ -671,6 +671,7 @@ computesequencesublut
 		lda board,x
 		sta subseq+0
 		asl subseq+0
+		asl subseq+0
 		txa
 		adc incr
 		tax
@@ -680,6 +681,8 @@ computesequencesublut
 		ora subseq+0
 		sta subseq+0
 		asl subseq+0
+		asl subseq+0
+		asl subseq+1
 		asl subseq+1
 		txa
 		adc incr
@@ -693,7 +696,10 @@ computesequencesublut
 		ora subseq+1
 		sta subseq+1
 		asl subseq+0
+		asl subseq+0
 		asl subseq+1
+		asl subseq+1
+		asl subseq+2
 		asl subseq+2
 		txa
 		adc incr
@@ -710,7 +716,10 @@ computesequencesublut
 		ora subseq+2
 		sta subseq+2
 		asl subseq+1
+		asl subseq+1
 		asl subseq+2
+		asl subseq+2
+		asl subseq+3
 		asl subseq+3
 		txa
 		adc incr
@@ -726,6 +735,8 @@ computesequencesublut
 		ora subseq+3
 		sta subseq+3
 		asl subseq+2
+		asl subseq+2
+		asl subseq+3
 		asl subseq+3
 		txa
 		adc incr
@@ -737,6 +748,7 @@ computesequencesublut
 		lda board,x
 		ora subseq+3
 		sta subseq+3
+		asl subseq+3
 		asl subseq+3
 		txa
 		adc incr
