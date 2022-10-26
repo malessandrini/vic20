@@ -34,7 +34,6 @@ score2		ds 1
 tmp1		ds 1
 colscores	ds 7
 maxgroup	ds 1
-subseq		ds 4
 incr		ds 1
 ptr			ds 1
 tot			ds 1  ; number of moves
@@ -660,151 +659,6 @@ computesequencesub
 
 ; ----------------------------------------------------------------------
 
-computesequencesublut
-		; input: ptr (offset in board), color (1 or 2), incr
-		; output: maxgroup: max sequence of color and 0 for that position and direction
-		; uses: subseq
-		SUBROUTINE
-		clc  ; should never be set in following steps
-		ldx ptr  ; TODO: pass x directly?
-		; 0
-		lda board,x
-		sta subseq+0
-		asl subseq+0
-		asl subseq+0
-		txa
-		adc incr
-		tax
-		; 1
-		lda board,x
-		sta subseq+1
-		ora subseq+0
-		sta subseq+0
-		asl subseq+0
-		asl subseq+0
-		asl subseq+1
-		asl subseq+1
-		txa
-		adc incr
-		tax
-		; 2
-		lda board,x
-		sta subseq+2
-		ora subseq+0
-		sta subseq+0
-		lda subseq+2
-		ora subseq+1
-		sta subseq+1
-		asl subseq+0
-		asl subseq+0
-		asl subseq+1
-		asl subseq+1
-		asl subseq+2
-		asl subseq+2
-		txa
-		adc incr
-		tax
-		; 3
-		lda board,x
-		sta subseq+3
-		ora subseq+0
-		sta subseq+0
-		lda subseq+3
-		ora subseq+1
-		sta subseq+1
-		lda subseq+3
-		ora subseq+2
-		sta subseq+2
-		asl subseq+1
-		asl subseq+1
-		asl subseq+2
-		asl subseq+2
-		asl subseq+3
-		asl subseq+3
-		txa
-		adc incr
-		tax
-		; 4
-		lda board,x
-		ora subseq+1
-		sta subseq+1
-		lda board,x
-		ora subseq+2
-		sta subseq+2
-		lda board,x
-		ora subseq+3
-		sta subseq+3
-		asl subseq+2
-		asl subseq+2
-		asl subseq+3
-		asl subseq+3
-		txa
-		adc incr
-		tax
-		; 5
-		lda board,x
-		ora subseq+2
-		sta subseq+2
-		lda board,x
-		ora subseq+3
-		sta subseq+3
-		asl subseq+3
-		asl subseq+3
-		txa
-		adc incr
-		tax
-		; 6
-		lda board,x
-		ora subseq+3
-		sta subseq+3
-		; now we have the 4 subsequences coded in 8 bit
-		lda color
-		cmp #2
-		beq .c2
-		ldx subseq+0
-		lda lutseq1,x
-		sta subseq+0
-		ldx subseq+1
-		lda lutseq1,x
-		sta subseq+1
-		ldx subseq+2
-		lda lutseq1,x
-		sta subseq+2
-		ldx subseq+3
-		lda lutseq1,x
-		sta subseq+3
-		jmp .l1
-.c2		ldx subseq+0
-		lda lutseq2,x
-		sta subseq+0
-		ldx subseq+1
-		lda lutseq2,x
-		sta subseq+1
-		ldx subseq+2
-		lda lutseq2,x
-		sta subseq+2
-		ldx subseq+3
-		lda lutseq2,x
-		sta subseq+3
-.l1		; compute max, A contains subseq+3
-		sta maxgroup
-		cmp subseq+2
-		bcs .l2
-		lda subseq+2
-		sta maxgroup
-.l2		cmp subseq+1
-		bcs .l3
-		lda subseq+1
-		sta maxgroup
-.l3		cmp subseq+0
-		bcs .l4
-		lda subseq+0
-		sta maxgroup
-.l4		rts
-
-
-; ----------------------------------------------------------------------
-
 checkfinish
 		; input: row, column
 		; output: Z=1 if finished
@@ -1030,7 +884,7 @@ initvars
 		lda #0
 		sta tot
 		; setup board
-		lda #3
+		lda #$ff
 		ldy #boardsize
 .loop1	dey
 		sta board,y
@@ -1235,26 +1089,6 @@ udcstart
 		dc %00000000
 
 udcend
-
-
-lutseq1
-        hex 0001000001020000000000000000000001020000020300000000000000000000
-        hex 0000000000000000000000000000000000000000000000000000000000000000
-        hex 0102000002030000000000000000000002030000030400000000000000000000
-        hex 0000000000000000000000000000000000000000000000000000000000000000
-        hex 0000000000000000000000000000000000000000000000000000000000000000
-        hex 0000000000000000000000000000000000000000000000000000000000000000
-        hex 0000000000000000000000000000000000000000000000000000000000000000
-        hex 0000000000000000000000000000000000000000000000000000000000000000
-lutseq2
-        hex 0000010000000000010002000000000000000000000000000000000000000000
-        hex 0100020000000000020003000000000000000000000000000000000000000000
-        hex 0000000000000000000000000000000000000000000000000000000000000000
-        hex 0000000000000000000000000000000000000000000000000000000000000000
-        hex 0100020000000000020003000000000000000000000000000000000000000000
-        hex 0200030000000000030004000000000000000000000000000000000000000000
-        hex 0000000000000000000000000000000000000000000000000000000000000000
-        hex 0000000000000000000000000000000000000000000000000000000000000000
 
 
 ;
