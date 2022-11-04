@@ -2,3 +2,5 @@
 *.lst
 *.d64
 *.sym
+gen_sokoban_data
+
