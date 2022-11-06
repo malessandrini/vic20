@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <cstdio>
 #include <cassert>
 #include <algorithm>
 #include <sstream>
@@ -15,7 +16,9 @@ struct Level {
 	unsigned rows, columns;
 	static std::vector<Level> read_data(const std::string &);  // throws
 	static constexpr uint8_t wall = 1, goal = 2, stone = 4, man = 8;
-	unsigned num_stones() const;
+	bool fits() const;
+	std::vector<uint8_t> encoded() const;
+	std::vector<uint8_t> encoded4bit() const;
 };
 
 
@@ -24,6 +27,18 @@ int main() {
 	std::cout << "Levels: " << levels.size() << std::endl;
 	for (int i = 0; i < levels.size(); ++i)
 		std::cout << i + 1 << " " << levels[i].rows << "x" << levels[i].columns << " " << (levels[i].rows * levels[i].columns) << "\n";
+	for (int i = 0; i < levels.size(); ++i)
+		if (!levels[i].fits()) std::cout << "discard: " <<  (i + 1) << "\n";
+	std::vector<uint8_t> all_levels;
+	for (auto const &l: levels)
+		if (l.fits()) {
+			const auto enc = l.encoded4bit();
+			all_levels.insert(all_levels.end(), enc.begin(), enc.end());
+		}
+	std::cout << "Encoded size: " << all_levels.size() << "\n";
+	FILE *f = fopen("aaaaa", "wb");
+	fwrite(all_levels.data(), 1, all_levels.size(), f);
+	fclose(f);
 }
 
 
@@ -90,6 +105,48 @@ std::vector<Level> Level::read_data(const std::string &def) {
 	}
 	return collection;
 }
+
+
+bool Level::fits() const {
+	return rows <= 22 && columns <= 22 && (rows * columns) <= 255;
+}
+
+
+std::vector<uint8_t> Level::encoded() const {
+	std::vector<uint8_t> e(3 + cells.size());
+	e[0] = rows;
+	e[1] = columns;
+	// man position
+	auto i = std::find_if(cells.begin(), cells.end(), [](auto v){ return v | man; });
+	e[2] = i - cells.begin();
+	// fill encoded string by nibbles
+	auto p = e.begin() + 3;
+	for (int i = 0; i < cells.size(); ++i)
+		*p++ = (cells[i] & 0x07);
+	return e;
+}
+
+
+std::vector<uint8_t> Level::encoded4bit() const {
+	std::vector<uint8_t> e(3 + (cells.size() + 1) / 2);
+	e[0] = rows;
+	e[1] = columns;
+	// man position
+	auto i = std::find_if(cells.begin(), cells.end(), [](auto v){ return v | man; });
+	e[2] = i - cells.begin();
+	// fill encoded string by nibbles
+	auto p = e.begin() + 3;
+	for (int i = 0; i < cells.size(); ++i) {
+		if (i % 2) {
+			*p <<= 4;
+			*p++ += (cells[i] & 0x07);
+		}
+		else *p = (cells[i] & 0x07);
+	}
+	return e;
+}
+
+
 
 
 const std::string microban(
