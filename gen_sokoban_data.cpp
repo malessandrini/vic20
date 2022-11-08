@@ -22,20 +22,27 @@ struct Level {
 };
 
 
+std::vector<uint8_t> rle_enc(std::vector<uint8_t> const &);
+std::vector<uint8_t> rle_dec(std::vector<uint8_t> const &);
+
+
 int main() {
 	auto levels = Level::read_data(microban);
 	std::cout << "Levels: " << levels.size() << std::endl;
-	for (int i = 0; i < levels.size(); ++i)
-		std::cout << i + 1 << " " << levels[i].rows << "x" << levels[i].columns << " " << (levels[i].rows * levels[i].columns) << "\n";
+	//for (int i = 0; i < levels.size(); ++i)
+	//	std::cout << i + 1 << " " << levels[i].rows << "x" << levels[i].columns << " " << (levels[i].rows * levels[i].columns) << "\n";
 	for (int i = 0; i < levels.size(); ++i)
 		if (!levels[i].fits()) std::cout << "discard: " <<  (i + 1) << "\n";
 	std::vector<uint8_t> all_levels;
 	for (auto const &l: levels)
 		if (l.fits()) {
-			const auto enc = l.encoded4bit();
+			const auto enc = l.encoded();
 			all_levels.insert(all_levels.end(), enc.begin(), enc.end());
 		}
 	std::cout << "Encoded size: " << all_levels.size() << "\n";
+	auto rle = rle_enc(all_levels);
+	assert(rle_dec(rle) == all_levels);
+	std::cout << "RLE: " << rle.size() << "\n";
 	FILE *f = fopen("aaaaa", "wb");
 	fwrite(all_levels.data(), 1, all_levels.size(), f);
 	fclose(f);
@@ -119,7 +126,7 @@ std::vector<uint8_t> Level::encoded() const {
 	// man position
 	auto i = std::find_if(cells.begin(), cells.end(), [](auto v){ return v | man; });
 	e[2] = i - cells.begin();
-	// fill encoded string by nibbles
+	// fill encoded string
 	auto p = e.begin() + 3;
 	for (int i = 0; i < cells.size(); ++i)
 		*p++ = (cells[i] & 0x07);
@@ -144,6 +151,38 @@ std::vector<uint8_t> Level::encoded4bit() const {
 		else *p = (cells[i] & 0x07);
 	}
 	return e;
+}
+
+
+std::vector<uint8_t> rle_enc(std::vector<uint8_t> const &data) {
+	// bit 7 = 0: normal byte
+	// bit 7 = 1: sequence length (7 bit) followed by 1 data byte
+	//  (if data byte has bit 7 set, must be encoded as sequence, possibly of length 1)
+	std::vector<uint8_t> rle;
+	for (unsigned i = 0; i < data.size(); ++i) {
+		unsigned seq = 1;
+		for (unsigned j = i + 1; j < data.size(); ++j)
+			if (data[j] == data[i]) ++seq;
+			else break;
+		if (seq > 127) seq = 127;
+		if (seq > 1 || data[i] > 127) {
+			rle.push_back(seq + 128);
+			rle.push_back(data[i]);
+			i += (seq - 1);
+		}
+		else rle.push_back(data[i]);
+	}
+	return rle;
+}
+
+
+std::vector<uint8_t> rle_dec(std::vector<uint8_t> const &data) {
+	std::vector<uint8_t> dec;
+	for (unsigned i = 0; i < data.size(); ++i) {
+		if (data[i] < 128) dec.push_back(data[i]);
+		else dec.resize(dec.size() + (data[i] - 128), data[i + 1]), ++i;
+	}
+	return dec;
 }
 
 
