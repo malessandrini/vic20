@@ -16,9 +16,11 @@ struct Level {
 	unsigned rows, columns;
 	static std::vector<Level> read_data(const std::string &);  // throws
 	static constexpr uint8_t wall = 1, goal = 2, stone = 4, man = 8;
+	unsigned num_stones() const { return std::count_if(cells.begin(), cells.end(), [](auto c){ return c & stone; }); }
 	bool fits() const;
 	std::vector<uint8_t> encoded() const;
 	std::vector<uint8_t> encoded4bit() const;
+	std::vector<uint8_t> encoded_parts() const;
 };
 
 
@@ -30,13 +32,13 @@ int main() {
 	auto levels = Level::read_data(microban);
 	std::cout << "Levels: " << levels.size() << std::endl;
 	//for (int i = 0; i < levels.size(); ++i)
-	//	std::cout << i + 1 << " " << levels[i].rows << "x" << levels[i].columns << " " << (levels[i].rows * levels[i].columns) << "\n";
+	//	std::cout << i + 1 << " " << levels[i].rows << "x" << levels[i].columns << " " << (levels[i].rows * levels[i].columns) << "\t" << levels[i].num_stones() << "\n";
 	for (int i = 0; i < levels.size(); ++i)
 		if (!levels[i].fits()) std::cout << "discard: " <<  (i + 1) << "\n";
 	std::vector<uint8_t> all_levels;
 	for (auto const &l: levels)
 		if (l.fits()) {
-			const auto enc = l.encoded();
+			const auto enc = l.encoded_parts();
 			all_levels.insert(all_levels.end(), enc.begin(), enc.end());
 		}
 	std::cout << "Encoded size: " << all_levels.size() << "\n";
@@ -124,7 +126,7 @@ std::vector<uint8_t> Level::encoded() const {
 	e[0] = rows;
 	e[1] = columns;
 	// man position
-	auto i = std::find_if(cells.begin(), cells.end(), [](auto v){ return v | man; });
+	auto i = std::find_if(cells.begin(), cells.end(), [](auto v){ return v & man; });
 	e[2] = i - cells.begin();
 	// fill encoded string
 	auto p = e.begin() + 3;
@@ -139,7 +141,7 @@ std::vector<uint8_t> Level::encoded4bit() const {
 	e[0] = rows;
 	e[1] = columns;
 	// man position
-	auto i = std::find_if(cells.begin(), cells.end(), [](auto v){ return v | man; });
+	auto i = std::find_if(cells.begin(), cells.end(), [](auto v){ return v & man; });
 	e[2] = i - cells.begin();
 	// fill encoded string by nibbles
 	auto p = e.begin() + 3;
@@ -150,6 +152,31 @@ std::vector<uint8_t> Level::encoded4bit() const {
 		}
 		else *p = (cells[i] & 0x07);
 	}
+	return e;
+}
+
+
+std::vector<uint8_t> Level::encoded_parts() const {
+	std::vector<uint8_t> e(3 + (cells.size() + 7) / 8);
+	e[0] = rows;
+	e[1] = columns;
+	// man position
+	auto i = std::find_if(cells.begin(), cells.end(), [](auto v){ return v & man; });
+	e[2] = i - cells.begin();
+	auto p = e.begin() + 2;
+	for (int i = 0; i < cells.size(); ++i) {
+		if (i % 8) {
+			*p <<= 1;
+			if (cells[i] & wall) *p |= 1;
+		}
+		else *++p = (cells[i] & wall) ? 1 : 0;
+	}
+	unsigned st = num_stones();
+	e.push_back(st);
+	for (auto i = cells.begin(); i != cells.end(); ++i)
+		if (*i & stone) e.push_back(i - cells.begin());
+	for (auto i = cells.begin(); i != cells.end(); ++i)
+		if (*i & goal) e.push_back(i - cells.begin());
 	return e;
 }
 
