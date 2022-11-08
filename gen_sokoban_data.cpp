@@ -7,9 +7,6 @@
 #include <algorithm>
 #include <sstream>
 
-extern const std::string microban;
-
-
 struct Level {
 	Level(const std::vector<std::string>&);
 	std::vector<uint8_t> cells;
@@ -23,7 +20,7 @@ struct Level {
 	std::vector<uint8_t> encoded_parts() const;
 };
 
-
+extern const std::string microban;
 std::vector<uint8_t> rle_enc(std::vector<uint8_t> const &);
 std::vector<uint8_t> rle_dec(std::vector<uint8_t> const &);
 
