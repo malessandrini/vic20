@@ -11,6 +11,7 @@ struct Level {
 	Level(const std::vector<std::string>&);
 	std::vector<uint8_t> cells;
 	unsigned rows, columns;
+	unsigned total() const { return rows * columns; }
 	static std::vector<Level> read_data(const std::string &);  // throws
 	static constexpr uint8_t wall = 1, goal = 2, stone = 4, man = 8;
 	unsigned num_stones() const { return std::count_if(cells.begin(), cells.end(), [](auto c){ return c & stone; }); }
@@ -25,9 +26,13 @@ int main() {
 	auto levels = Level::read_data(microban);
 	std::cout << "Levels: " << levels.size() << std::endl;
 	//for (int i = 0; i < levels.size(); ++i)
-	//	std::cout << i + 1 << " " << levels[i].rows << "x" << levels[i].columns << " " << (levels[i].rows * levels[i].columns) << "\t" << levels[i].num_stones() << "\n";
+	//	std::cout << i + 1 << "\t" << levels[i].rows << "x" << levels[i].columns << "\t" << (levels[i].total()) << "\t" << levels[i].num_stones() << "\n";
 	for (int i = 0; i < levels.size(); ++i)
 		if (!levels[i].fits()) std::cout << "discard: " <<  (i + 1) << "\n";
+	std::cout << "max rows, cols, tot: "
+		<< std::max_element(levels.cbegin(), levels.cend(), [](const auto &a, const auto &b){ return (a.fits() ? a.rows : 0) < (b.fits() ? b.rows : 0); })->rows << " "
+		<< std::max_element(levels.cbegin(), levels.cend(), [](const auto &a, const auto &b){ return (a.fits() ? a.columns : 0) < (b.fits() ? b.columns : 0); })->columns << " "
+		<< std::max_element(levels.cbegin(), levels.cend(), [](const auto &a, const auto &b){ return (a.fits() ? a.total() : 0) < (b.fits() ? b.total() : 0); })->total() << "\n";
 	std::vector<uint8_t> all_levels;
 	for (auto const &l: levels)
 		if (l.fits()) {
@@ -132,6 +137,9 @@ std::vector<uint8_t> Level::encoded_parts() const {
 		}
 		else *++p = (cells[i] & wall) ? 1 : 0;
 	}
+	// last bits (if not exact multiple of 8) must be shifted to the left
+	unsigned n = (cells.size() % 8) ? 8 - (cells.size() % 8) : 0;
+	for (unsigned i = 0; i < n; ++i) *p <<= 1;
 	unsigned st = num_stones();
 	e.push_back(st);
 	for (auto i = cells.begin(); i != cells.end(); ++i)
