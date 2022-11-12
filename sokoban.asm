@@ -255,6 +255,51 @@ draw_level
 		sta scrn_ptr+1
 		dec i
 		bne .lr
+		; print level number
+		lda #12  ; 'L'
+		sta video
+		lda #<[video+1]
+		sta scrn_ptr
+		lda #>[video+1]
+		sta scrn_ptr+1
+		lda level
+		jsr print_decimal
+		rts
+
+
+print_decimal
+		; input: scrn_ptr, A
+		SUBROUTINE
+		sta i
+		ldx #0  ; remainder
+		; first, divide by 100 to find first digit
+.hundr	lda i
+		sec
+		sbc #100
+		bcc .l1  ; if negative, stop subtracting
+		sta i
+		inx
+		jmp .hundr
+.l1		txa
+		adc #48  ; C is already clear
+		ldy #0
+		sta (scrn_ptr),y  ; first digit
+		ldx #0
+.tenth	lda i
+		sec
+		sbc #10
+		bcc .l2  ; if negative, stop subtracting
+		sta i
+		inx
+		jmp .tenth
+.l2		txa
+		adc #48  ; C is already clear
+		iny
+		sta (scrn_ptr),y  ; second digit
+		lda i  ; remainder, third digit
+		adc #48
+		iny
+		sta (scrn_ptr),y  ; third digit
 		rts
 
 
