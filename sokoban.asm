@@ -1,10 +1,10 @@
 	processor 6502
 
 	IFCONST EXP3k
-		ECHO "*** 3k"
+		;ECHO "*** 3k"
 	ELSE
 		IFCONST EXP8k
-			ECHO "*** 8k"
+			;ECHO "*** 8k"
 		ELSE
 			ECHO "ERROR: no expansion type declared"
 			ERR
@@ -50,6 +50,8 @@ bGOAL		equ 2
 bSTONE		equ 4
 bMAN		equ 8
 
+CHAR_OFF	equ 0  ; added to character code to switch to default character ROM
+
 ; possible values of a cell: 0 (empty), 1 (wall), 2 (goal), 3 (NO), 4 (stone), 5 (NO), 6 (stone+goal),
 ;  7 (NO), 8 (man), 9 (NO), 10 (man+goal)
 
@@ -72,6 +74,17 @@ scrn_ptr	ds 2  ; pointer for screen memory (X or Y register not enough to sweep 
 i			ds 1  ; generic temp. variable
 j			ds 1  ; generic temp. variable
 k			ds 1  ; generic temp. variable
+; for every level, the following variables tell how to draw the map
+; in a 11x11 logical screen (2x2 chars for every cell), with possible
+; scrolling for maps larger than 11 rows or columns
+scr_r		ds 1  ; screen position where to draw map
+scr_c		ds 1
+map_r		ds 1  ; map cell drawn at origin (0..delta_r)
+map_c		ds 1
+draw_r		ds 1  ; how many cells to draw
+draw_c		ds 1
+delta_r		ds 1  ; max value for map_r (scrolling)
+delta_c		ds 1
 
 ;
 zplimit
@@ -217,7 +230,54 @@ level_ptr_next
 		lda #0
 		adc level_ptr+1
 		sta level_ptr+1
-		rts
+		; compute parameters for drawing
+		; rows
+		lda #0
+		sta map_r
+		lda #11
+		sec
+		sbc rows  ; 11 - rows
+		bcc .rge11  ;  if rows > 11
+		; otherwise rows <= 11
+		lsr  ; now A = (11 - rows) / 2
+		sta scr_r
+		lda rows
+		sta draw_r  ; draw all rows
+		lda #0
+		sta delta_r  ; scrolling
+		jmp .l7
+.rge11	lda #0
+		sta scr_r
+		lda #11
+		sta draw_r
+		lda rows
+		sec
+		sbc #11
+		sta delta_r
+.l7		; columns
+		lda #0
+		sta map_c
+		lda #11
+		sec
+		sbc cols  ; 11 - cols
+		bcc .cge11  ;  if cols > 11
+		; otherwise cols <= 11
+		lsr  ; now A = (11 - cols) / 2
+		sta scr_c
+		lda cols
+		sta draw_c  ; draw all cols
+		lda #0
+		sta delta_c  ; scrolling
+		jmp .l8
+.cge11	lda #0
+		sta scr_c
+		lda #11
+		sta draw_c
+		lda cols
+		sec
+		sbc #11
+		sta delta_c
+.l8		rts
 
 
 draw_level
@@ -326,7 +386,7 @@ clearscreen
 		lda #27
 		sta 36879
 ;  space character
-		lda #32+128
+		lda #32+CHAR_OFF
 
 		ldy #253
 .loop1	dey
