@@ -239,7 +239,9 @@ level_ptr_next
 		sbc rows  ; 11 - rows
 		bcc .rge11  ;  if rows > 11
 		; otherwise rows <= 11
-		lsr  ; now A = (11 - rows) / 2
+		clc
+		adc #1
+		lsr  ; now A = (11 - rows + 1) / 2
 		sta scr_r
 		lda rows
 		sta draw_r  ; draw all rows
@@ -289,7 +291,8 @@ draw_level
 		sta scrn_ptr+1
 		; increment row according to scr_r
 		ldx scr_r
-.l1		lda #22
+		beq .l1a
+.l1		lda #44
 		clc
 		adc scrn_ptr
 		sta scrn_ptr
@@ -299,7 +302,8 @@ draw_level
 		dex
 		bne .l1
 		; increment column according to scr_c
-		lda scr_c
+.l1a	lda scr_c
+		asl
 		clc
 		adc scrn_ptr
 		sta scrn_ptr
@@ -308,25 +312,57 @@ draw_level
 		sta scrn_ptr+1
 
 		lda draw_r
-		sta i
+		sta i  ; loop for row
 		lda #0
 		sta k  ; pointer in level_map
+		; increment k according to map_r
+		ldx map_r
+		beq .l2a
+.l2		lda cols
+		clc
+		adc k
+		sta k
+		dex
+		bne .l2
+		; increment k according to map_c
+.l2a	lda map_c
+		clc
+		adc k
+		sta k
 .lr		; row loop
 		ldy #0  ; offset (column) for scrn_ptr
 		lda draw_c
-		sta j
+		sta j  ; loop for cols
 .lc		; column loop
 		ldx k
 		inc k
 		lda level_map,x  ; next cell
 		tax
 		lda map_char,x  ; character for this cell value
-		sta (scrn_ptr),y
+		sta (scrn_ptr),y  ; first char
 		iny
+		sta (scrn_ptr),y  ; second char
+		tya
+		clc
+		adc #21
+		tay
+		lda map_char,x
+		sta (scrn_ptr),y  ; third char
+		iny
+		sta (scrn_ptr),y  ; fourth char
+		tya
+		sec
+		sbc #21
+		tay
 		dec j
 		bne .lc
+		; update k for (possible) remainder cols-11 (= delta_c)
+		lda delta_c
+		clc
+		adc k
+		sta k
 		; update scrn_ptr on next line
-		lda #22
+		lda #44
 		clc
 		adc scrn_ptr
 		sta scrn_ptr
