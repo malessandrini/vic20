@@ -287,13 +287,33 @@ draw_level
 		sta scrn_ptr
 		lda #>[video+22]
 		sta scrn_ptr+1
-		lda rows
+		; increment row according to scr_r
+		ldx scr_r
+.l1		lda #22
+		clc
+		adc scrn_ptr
+		sta scrn_ptr
+		lda #0
+		adc scrn_ptr+1
+		sta scrn_ptr+1
+		dex
+		bne .l1
+		; increment column according to scr_c
+		lda scr_c
+		clc
+		adc scrn_ptr
+		sta scrn_ptr
+		lda #0
+		adc scrn_ptr+1
+		sta scrn_ptr+1
+
+		lda draw_r
 		sta i
 		lda #0
 		sta k  ; pointer in level_map
 .lr		; row loop
 		ldy #0  ; offset (column) for scrn_ptr
-		lda cols
+		lda draw_c
 		sta j
 .lc		; column loop
 		ldx k
