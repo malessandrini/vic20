@@ -248,7 +248,7 @@ only_man
 		jmp redraw_level
 
 
-map_char4
+map_char
 		dc 32, 32, 32, 32  ; empty
 		dc 102, 102, 102, 102  ; wall
 		dc 85, 73, 74, 75  ; goal
@@ -260,6 +260,18 @@ map_char4
 		dc 87, 32, 89, 77  ; man
 		dc 63+CHAR_OFF, 63+CHAR_OFF, 63+CHAR_OFF, 63+CHAR_OFF  ; invalid
 		dc 81, 73, 89, 75  ; man + goal
+map_color
+		dc 6, 6, 6, 6
+		dc 6, 6, 6, 6
+		dc 6, 6, 6, 6
+		dc 6, 6, 6, 6
+		dc 6, 6, 6, 6
+		dc 6, 6, 6, 6
+		dc 6, 6, 6, 6
+		dc 6, 6, 6, 6
+		dc 6, 6, 6, 6
+		dc 6, 6, 6, 6
+		dc 6, 6, 6, 6
 
 
 level_load
@@ -470,22 +482,22 @@ draw_level
 		asl
 		asl
 		tax
-		lda map_char4,x  ; character for this cell value
+		lda map_char,x  ; character for this cell value
 		sta (scrn_ptr),y  ; first char
 		iny
 		inx
-		lda map_char4,x
+		lda map_char,x
 		sta (scrn_ptr),y  ; second char
 		tya
 		clc
 		adc #21
 		tay
 		inx
-		lda map_char4,x
+		lda map_char,x
 		sta (scrn_ptr),y  ; third char
 		iny
 		inx
-		lda map_char4,x
+		lda map_char,x
 		sta (scrn_ptr),y  ; fourth char
 		tya
 		sec
