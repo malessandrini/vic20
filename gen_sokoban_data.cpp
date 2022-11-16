@@ -147,7 +147,7 @@ std::vector<uint8_t> Level::encoded_parts() const {
 	for (auto i = cells.begin(); i != cells.end(); ++i)
 		if (*i & goal) e.push_back(i - cells.begin());
 	assert(e.size() < 256);
-	e[0] = e.size() - 1;
+	e[0] = e.size();
 	return e;
 }
 
