@@ -123,13 +123,13 @@ bool Level::fits() const {
 
 
 std::vector<uint8_t> Level::encoded_parts() const {
-	std::vector<uint8_t> e(3 + (cells.size() + 7) / 8);
-	e[0] = rows;
-	e[1] = columns;
+	std::vector<uint8_t> e(4 + (cells.size() + 7) / 8);
+	e[1] = rows;
+	e[2] = columns;
 	// man position
 	auto i = std::find_if(cells.begin(), cells.end(), [](auto v){ return v & man; });
-	e[2] = i - cells.begin();
-	auto p = e.begin() + 2;
+	e[3] = i - cells.begin();
+	auto p = e.begin() + 3;
 	for (int i = 0; i < cells.size(); ++i) {
 		if (i % 8) {
 			*p <<= 1;
@@ -146,6 +146,8 @@ std::vector<uint8_t> Level::encoded_parts() const {
 		if (*i & stone) e.push_back(i - cells.begin());
 	for (auto i = cells.begin(); i != cells.end(); ++i)
 		if (*i & goal) e.push_back(i - cells.begin());
+	assert(e.size() < 256);
+	e[0] = e.size() - 1;
 	return e;
 }
 

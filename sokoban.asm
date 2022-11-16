@@ -12,7 +12,7 @@
 	ENDIF
 
 ; configuration for 3k expansion:
-;  $0400 - $1bff(max): code + level data, 6144 bytes (level data = 3522 bytes)
+;  $0400 - $1bff(max): code + level data, 6144 bytes (level data = 3675 bytes)
 ;  $1c00: user-defined characters (convenient because falls back to character ROM by adding 128)
 ;   (possibly moved in place at startup if final binary is shorter)
 ;  $1e00: video memory
@@ -74,6 +74,7 @@ scrn_ptr	ds 2  ; pointer for screen memory (X or Y register not enough to sweep 
 i			ds 1  ; generic temp. variable
 j			ds 1  ; generic temp. variable
 k			ds 1  ; generic temp. variable
+goto_lev	ds 1  ; target random level to load
 ; for every level, the following variables tell how to draw the map
 ; in a 11x11 logical screen (2x2 chars for every cell), with possible
 ; scrolling for maps larger than 11 rows or columns
@@ -121,17 +122,61 @@ start
 		txs
 
 		jsr level_ptr_reset
-l1		jsr level_ptr_next
+		; start with level 1 loaded
+		jsr level_ptr_next
+start_level
 		jsr draw_level
+wait_input
 		jsr getchar
+		cmp #'N
+		beq go_next
+		cmp #29
+		beq go_next
+		cmp #'P
+		beq go_prev
+		cmp #157
+		beq go_prev
+		jmp wait_input
+go_next
 		lda level
-		cmp #153
-		bne l1
+		cmp #LEV_NUM
+		beq wait_input
+		sta goto_lev
+		inc goto_lev
+		jsr level_find
+		jmp start_level
+go_prev
+		lda level
+		beq wait_input
+		sta goto_lev
+		dec goto_lev
+		jsr level_find
+		jmp start_level
+
+
+;l1		jsr level_ptr_next
+;		jsr draw_level
+;		jsr getchar
+;		lda level
+;		cmp #153
+;		bne l1
 
 hang	jmp hang
 
 
-map_char	dc 32, 102, 46, 24, 36, 24, 42, 24, 0, 24, 43
+;map_char	dc 32, 102, 46, 63, 36, 63, 42, 63, 0, 63, 43
+
+map_char4	dc 32, 32, 32, 32  ; empty
+			dc 102, 102, 102, 102  ; wall
+			dc 85, 73, 74, 75  ; goal
+			dc 63+CHAR_OFF, 63+CHAR_OFF, 63+CHAR_OFF, 63+CHAR_OFF  ; invalid
+			dc 78, 77, 77, 78  ; stone
+			dc 63+CHAR_OFF, 63+CHAR_OFF, 63+CHAR_OFF, 63+CHAR_OFF  ; invalid
+			dc 78, 77, 95, 105  ; stone + goal
+			dc 63+CHAR_OFF, 63+CHAR_OFF, 63+CHAR_OFF, 63+CHAR_OFF  ; invalid
+			dc 87, 32, 89, 77  ; man
+			dc 63+CHAR_OFF, 63+CHAR_OFF, 63+CHAR_OFF, 63+CHAR_OFF  ; invalid
+			dc 81, 73, 89, 75  ; man + goal
 
 
 level_ptr_reset
@@ -142,6 +187,16 @@ level_ptr_reset
 		sta level_ptr+1
 		lda #0
 		sta level  ; invalid level
+		rts
+
+
+level_find
+		SUBROUTINE
+		jsr level_ptr_reset
+.loop	jsr level_ptr_next
+		lda level
+		cmp goto_lev
+		bne .loop
 		rts
 
 
@@ -227,12 +282,11 @@ level_ptr_next
 		clc
 		adc level_ptr
 		sta level_ptr
-		lda #0
-		adc level_ptr+1
-		sta level_ptr+1
+		bcc .l6a
+		inc level_ptr+1
 		; compute parameters for drawing
 		; rows
-		lda #0
+.l6a	lda #0
 		sta map_r
 		lda #11
 		sec
@@ -296,10 +350,9 @@ draw_level
 		clc
 		adc scrn_ptr
 		sta scrn_ptr
-		lda #0
-		adc scrn_ptr+1
-		sta scrn_ptr+1
-		dex
+		bcc .l1p
+		inc scrn_ptr+1
+.l1p	dex
 		bne .l1
 		; increment column according to scr_c
 .l1a	lda scr_c
@@ -307,10 +360,9 @@ draw_level
 		clc
 		adc scrn_ptr
 		sta scrn_ptr
-		lda #0
-		adc scrn_ptr+1
-		sta scrn_ptr+1
-
+		bcc .l1q
+		inc scrn_ptr+1
+.l1q
 		lda draw_r
 		sta i  ; loop for row
 		lda #0
@@ -336,19 +388,26 @@ draw_level
 .lc		; column loop
 		ldx k
 		inc k
-		lda level_map,x  ; next cell
+		lda level_map,x  ; next cell value
+		asl
+		asl
 		tax
-		lda map_char,x  ; character for this cell value
+		lda map_char4,x  ; character for this cell value
 		sta (scrn_ptr),y  ; first char
 		iny
+		inx
+		lda map_char4,x
 		sta (scrn_ptr),y  ; second char
 		tya
 		clc
 		adc #21
 		tay
-		lda map_char,x
+		inx
+		lda map_char4,x
 		sta (scrn_ptr),y  ; third char
 		iny
+		inx
+		lda map_char4,x
 		sta (scrn_ptr),y  ; fourth char
 		tya
 		sec
@@ -372,7 +431,7 @@ draw_level
 		dec i
 		bne .lr
 		; print level number
-		lda #12  ; 'L'
+		lda #12+CHAR_OFF  ; 'L'
 		sta video
 		lda #<[video+1]
 		sta scrn_ptr
@@ -397,7 +456,7 @@ print_decimal
 		inx
 		jmp .hundr
 .l1		txa
-		adc #48  ; C is already clear
+		adc #48+CHAR_OFF  ; C is already clear
 		ldy #0
 		sta (scrn_ptr),y  ; first digit
 		ldx #0
@@ -409,11 +468,11 @@ print_decimal
 		inx
 		jmp .tenth
 .l2		txa
-		adc #48  ; C is already clear
+		adc #48+CHAR_OFF  ; C is already clear
 		iny
 		sta (scrn_ptr),y  ; second digit
 		lda i  ; remainder, third digit
-		adc #48
+		adc #48+CHAR_OFF
 		iny
 		sta (scrn_ptr),y  ; third digit
 		rts
@@ -441,44 +500,25 @@ clearscreen
 		; screen and border color
 		lda #27
 		sta 36879
-;  space character
+; space character
 		lda #32+CHAR_OFF
-
 		ldy #253
 .loop1	dey
 		sta video,y
-		bne .loop1
-
-		ldy #253
-.loop2	dey
 		sta video+253,y
-		bne .loop2
-
+		bne .loop1
 ; color
 		lda #6
-
 		ldy #253
 .loop3	dey
 		sta vcolor,y
-		bne .loop3
-
-		ldy #253
-.loop4	dey
 		sta vcolor+253,y
-		bne .loop4
+		bne .loop3
 		rts
 
 
-
-
-
-
-
-
-
-
-
-
+; format for each level:
+; [tot][rows][cols][man][wall bitmap]...[num_stones][stone]...[goal]...
 
 
 level_data
