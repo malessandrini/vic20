@@ -24,7 +24,12 @@
 ;  $nnnn+1 - $3fff(or more for bigger expansions): level data + extra code
 ;  (user-defined chars and level data may be moved in place at startup if final binary is shorter)
 
+
+;=======================================================================
+; ----------------------------------------------------------------------
+;=======================================================================
 ; constants
+
 	IFCONST EXP3k
 ramstart	equ $0400
 video		equ $1e00   ; video memory
@@ -56,6 +61,9 @@ CHAR_OFF	equ 0  ; added to character code to switch to default character ROM
 ;  7 (NO), 8 (man), 9 (NO), 10 (man+goal)
 
 
+;=======================================================================
+; ----------------------------------------------------------------------
+;=======================================================================
 ; variables in zero page
 ;
 ; we overwrite the Basic variable area, but leave kernal area untouched
@@ -94,6 +102,9 @@ zplimit
 		ENDIF
 
 
+;=======================================================================
+; ----------------------------------------------------------------------
+;=======================================================================
 ; tape buffer area, 192 bytes (maybe some more before and after)
 		seg.u tapebuffer
 		org 828
@@ -105,8 +116,10 @@ tpbuflimit
 			ERR
 		ENDIF
 
-; ----------------------------------------------------------------------
 
+;=======================================================================
+; ----------------------------------------------------------------------
+;=======================================================================
 ; start of code
 
 		seg code
@@ -134,6 +147,7 @@ start
 		sta level
 		jsr level_load
 start_level
+		jsr clearscreen
 redraw_level
 		jsr draw_level
 wait_input
@@ -248,6 +262,8 @@ only_man
 		jmp redraw_level
 
 
+; ----------------------------------------------------------------------
+
 map_char
 		dc 32, 32, 32, 32  ; empty
 		dc 102, 102, 102, 102  ; wall
@@ -273,6 +289,8 @@ map_color
 		dc 6, 6, 6, 6
 		dc 6, 6, 6, 6
 
+
+; ----------------------------------------------------------------------
 
 level_load
 		; input: level
@@ -426,9 +444,11 @@ level_load
 .l8		rts
 
 
+; ----------------------------------------------------------------------
+
 draw_level
 		SUBROUTINE
-		jsr clearscreen
+		;jsr clearscreen
 		lda #<[video+22]
 		sta scrn_ptr
 		lda #>[video+22]
@@ -532,6 +552,8 @@ draw_level
 		rts
 
 
+; ----------------------------------------------------------------------
+
 print_decimal
 		; input: scrn_ptr, A
 		SUBROUTINE
@@ -606,6 +628,11 @@ clearscreen
 		bne .loop3
 		rts
 
+
+;=======================================================================
+; ----------------------------------------------------------------------
+;=======================================================================
+; level data
 
 ; format for each level:
 ; [tot][rows][cols][man][wall bitmap]...[num_stones][stone]...[goal]...
@@ -729,6 +756,11 @@ level_data
         hex 50828497FF800A1D1E242E383E485258620E1B2835424F5C5D696A
 level_data_end
 
+
+;=======================================================================
+; ----------------------------------------------------------------------
+;=======================================================================
+; memory area for uncompressed level
 
 lvl_unpack
 		seg.u level_unpack
