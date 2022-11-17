@@ -79,6 +79,7 @@ cols		ds 1  ; columns of current level
 man			ds 1  ; position of man
 lev_size	ds 1  ; number of total cells of level
 scrn_ptr	ds 2  ; pointer for screen memory (X or Y register not enough to sweep all screen)
+extra_ptr	ds 2  ; pointer for different uses (color memory, strings, ...)
 i			ds 1  ; generic temp. variable
 j			ds 1  ; generic temp. variable
 k			ds 1  ; generic temp. variable
@@ -142,12 +143,41 @@ start
 		ora #128
 		sta 657
 
-		; start with level 1 loaded
+		; start with level 1
 		lda #1
 		sta level
-		jsr level_load
+
+		jmp main_menu
+
+
+; ----------------------------------------------------------------------
+
+main_menu
+		jsr clearscreen
+		prn_str video+22*1+5, str_main1
+main0	jsr getchar
+		cmp #32
+		beq start_level
+		cmp #'H
+		beq help_menu
+		jmp main0
+
+
+; ----------------------------------------------------------------------
+
+help_menu
+		jsr clearscreen
+		prn_str video+22*1+3, str_help1
+		jsr getchar
+		jmp main_menu
+
+
+; ----------------------------------------------------------------------
+
 start_level
 		jsr clearscreen
+		jsr level_load
+		; TODO: clear game variables
 redraw_level
 		jsr draw_level
 wait_input
@@ -192,14 +222,12 @@ go_next
 		cmp #LEV_NUM
 		beq wait_input
 		inc level
-		jsr level_load
 		jmp start_level
 go_prev
 		lda level
 		cmp #1
 		beq wait_input
 		dec level
-		jsr level_load
 		jmp start_level
 
 trmpl1	jmp wait_input
@@ -288,6 +316,25 @@ map_color
 		dc 6, 6, 6, 6
 		dc 6, 6, 6, 6
 		dc 6, 6, 6, 6
+
+str_main1	dc "***********", 10
+			dc "*", 8,   "*", 10
+			dc "* SOKOBAN *", 10
+			dc "*", 8,   "*", 10
+			dc "***********", 30, 30, 9
+			dc "SPACE: START LEVEL", 25
+			dc "C: ENTER LEVEL CODE", 24
+			dc "H: HELP", 0
+
+str_help1	dc "IN-GAME CONTROLS", 22, 23
+			dc "ARROWS,JOYSTICK: MOVE ", 21
+			dc "W,A,S,Z: SCROLL VIEW", 23
+			dc "N,P: NEXT/PREV. LEVEL", 22
+			dc "U,FIRE: UNDO MOVE", 26
+			dc "R: REDO MOVE", 31
+			dc "F1: EXIT TO MENU", 27
+			dc "F7: RESET LEVEL", 28
+			dc "H: THIS HELP", 0
 
 
 ; ----------------------------------------------------------------------
@@ -554,6 +601,62 @@ draw_level
 
 ; ----------------------------------------------------------------------
 
+ascii2vic
+		SUBROUTINE
+		; input: A (ascii)
+		; only works for ascii codes in range 32..90 (except '@')
+		cmp #65
+		bcc .ok
+		sbc #64
+		clc
+.ok		adc #CHAR_OFF
+		rts
+
+
+; ----------------------------------------------------------------------
+
+print_string
+		; input: scrn_ptr, extra_ptr (0-terminated string, ascii in range 32..90 except '@')
+		;  bytes in range 1..31 are interpreted as space skip
+		SUBROUTINE
+		ldy #0
+.l1		lda (extra_ptr),y
+		beq .end
+		cmp #32
+		bcc .skip
+		jsr ascii2vic
+		sta (scrn_ptr),y
+.l2		iny
+		bne .l1
+		inc extra_ptr+1
+		inc scrn_ptr+1
+		jmp .l1
+.skip	adc scrn_ptr  ; C is 0
+		sta scrn_ptr
+		bcc .l2
+		inc scrn_ptr+1
+		jmp .l2
+.end	rts
+
+
+; ----------------------------------------------------------------------
+; convenience macro to call print_string
+
+	mac prn_str
+		lda #<[{1}]
+		sta scrn_ptr
+		lda #>[{1}]
+		sta scrn_ptr+1
+		lda #<[{2}]
+		sta extra_ptr
+		lda #>[{2}]
+		sta extra_ptr+1
+		jsr print_string
+	endm
+
+
+; ----------------------------------------------------------------------
+
 print_decimal
 		; input: scrn_ptr, A
 		SUBROUTINE
@@ -610,7 +713,7 @@ getchar
 clearscreen
 		SUBROUTINE
 		; screen and border color
-		lda #27
+		lda #11
 		sta 36879
 ; space character
 		lda #32+CHAR_OFF
@@ -620,7 +723,7 @@ clearscreen
 		sta video+253,y
 		bne .loop1
 ; color
-		lda #6
+		lda #1
 		ldy #253
 .loop3	dey
 		sta vcolor,y
