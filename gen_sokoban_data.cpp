@@ -6,6 +6,7 @@
 #include <cassert>
 #include <algorithm>
 #include <sstream>
+#include <set>
 
 struct Level {
 	Level(const std::vector<std::string>&);
@@ -34,9 +35,14 @@ int main() {
 		<< std::max_element(levels.cbegin(), levels.cend(), [](const auto &a, const auto &b){ return (a.fits() ? a.columns : 0) < (b.fits() ? b.columns : 0); })->columns << " "
 		<< std::max_element(levels.cbegin(), levels.cend(), [](const auto &a, const auto &b){ return (a.fits() ? a.total() : 0) < (b.fits() ? b.total() : 0); })->total() << "\n";
 	std::vector<uint8_t> all_levels;
+	std::set<std::vector<uint8_t>> codes;
 	for (auto const &l: levels)
 		if (l.fits()) {
 			const auto enc = l.encoded_parts();
+			const std::vector<uint8_t> code(enc.cbegin() + 5, enc.cbegin() + 8);
+			//uint32_t code = 0;
+			//for (auto const n: enc) code = (code + n) % 0xFFFFFF;
+			if (!codes.insert(code).second) std::cout << "WARNING: duplicated code!" << std::endl;
 			all_levels.insert(all_levels.end(), enc.begin(), enc.end());
 		}
 	std::cout << "Encoded size: " << all_levels.size() << "\n" << std::endl;
