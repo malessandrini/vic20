@@ -161,6 +161,8 @@ main0	jsr getchar
 		beq start_level
 		cmp #'H
 		beq help_menu
+		cmp #'C
+		beq enter_code
 		jmp main0
 
 
@@ -169,6 +171,15 @@ main0	jsr getchar
 help_menu
 		jsr clearscreen
 		prn_str video+22*1+3, str_help1
+		jsr getchar
+		jmp main_menu
+
+
+; ----------------------------------------------------------------------
+
+enter_code
+		jsr clearscreen
+		prn_str video+22*10+5, str_enter_code
 		jsr getchar
 		jmp main_menu
 
@@ -318,6 +329,7 @@ level_complete
 		cmp #LEV_NUM
 		beq .l1
 		inc level
+		; TODO: different thing after last level
 .l1		jsr load_level
 		; show screen with secret code
 		jsr clearscreen
@@ -328,6 +340,15 @@ level_complete
 		sta scrn_ptr+1
 		lda level
 		jsr print_decimal
+		; write code
+		ldx #6
+.l2		lda [lev_code-1],x
+		clc
+		adc #'A
+		jsr ascii2vic
+		sta [video+22*13+6],x
+		dex
+		bne .l2
 		jsr delay_1s
 		jsr delay_1s
 		jsr getchar
@@ -380,7 +401,12 @@ str_help1	dc "IN-GAME CONTROLS", 22, 22, 22
 			dc "F7: RESET LEVEL", 28
 			dc "H: THIS HELP", 0
 
-str_lev_code	dc "CODE FOR LEVEL    :", 0
+str_lev_code
+			dc "CODE FOR LEVEL    :", 0
+
+str_enter_code
+			dc "ENTER CODE:", 22, 24, 30, "------", 0
+
 
 ; ----------------------------------------------------------------------
 

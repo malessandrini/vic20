@@ -35,7 +35,8 @@ int main() {
 		<< std::max_element(levels.cbegin(), levels.cend(), [](const auto &a, const auto &b){ return (a.fits() ? a.columns : 0) < (b.fits() ? b.columns : 0); })->columns << " "
 		<< std::max_element(levels.cbegin(), levels.cend(), [](const auto &a, const auto &b){ return (a.fits() ? a.total() : 0) < (b.fits() ? b.total() : 0); })->total() << "\n";
 	std::vector<uint8_t> all_levels;
-	std::set<std::vector<uint8_t>> codes;
+	std::set<std::vector<uint8_t>> code_set;
+	std::vector<std::vector<uint8_t>> codes;
 	for (auto const &l: levels)
 		if (l.fits()) {
 			const auto enc = l.encoded_parts();
@@ -43,10 +44,16 @@ int main() {
 			// last 6 bytes, 4 bits for each byte in proper position -> can be written as 6 letters or 6 hex digits
 			std::vector<uint8_t> code(enc.cend() - 6, enc.end());
 			for (auto &c: code) c = (c & 0b00111100) >> 2;
-			if (!codes.insert(code).second) std::cout << "WARNING: duplicated code!" << std::endl;
+			if (!code_set.insert(code).second) std::cout << "WARNING: duplicated code!" << std::endl;
+			codes.push_back(code);
 			//
 			all_levels.insert(all_levels.end(), enc.begin(), enc.end());
 		}
+	for (int i = 0; i < codes.size(); ++i) {
+		std::cout << i + 1 << "\t";
+		for (auto const c: codes[i]) std::cout << char('A' + c);
+		std::cout << std::endl;
+	}
 	std::cout << "Encoded size: " << all_levels.size() << "\n" << std::endl;
 	//FILE *f = fopen("aaaaa", "wb");
 	//fwrite(all_levels.data(), 1, all_levels.size(), f);
