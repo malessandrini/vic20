@@ -39,10 +39,12 @@ int main() {
 	for (auto const &l: levels)
 		if (l.fits()) {
 			const auto enc = l.encoded_parts();
-			const std::vector<uint8_t> code(enc.cbegin() + 5, enc.cbegin() + 8);
-			//uint32_t code = 0;
-			//for (auto const n: enc) code = (code + n) % 0xFFFFFF;
+			// unique code for every level generated from level data, found experimentally as follows:
+			// last 6 bytes, 4 bits for each byte in proper position -> can be written as 6 letters or 6 hex digits
+			std::vector<uint8_t> code(enc.cend() - 6, enc.end());
+			for (auto &c: code) c = (c & 0b00111100) >> 2;
 			if (!codes.insert(code).second) std::cout << "WARNING: duplicated code!" << std::endl;
+			//
 			all_levels.insert(all_levels.end(), enc.begin(), enc.end());
 		}
 	std::cout << "Encoded size: " << all_levels.size() << "\n" << std::endl;

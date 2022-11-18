@@ -78,6 +78,7 @@ rows		ds 1  ; rows of current level
 cols		ds 1  ; columns of current level
 man			ds 1  ; position of man
 lev_size	ds 1  ; number of total cells of level
+lev_code	ds 6  ; secret code for level (0..15 for every byte)
 scrn_ptr	ds 2  ; pointer for screen memory (X or Y register not enough to sweep all screen)
 extra_ptr	ds 2  ; pointer for different uses (color memory, strings, ...)
 i			ds 1  ; generic temp. variable
@@ -176,7 +177,7 @@ help_menu
 
 start_level
 		jsr clearscreen
-		jsr level_load
+		jsr load_level
 		; TODO: clear game variables
 redraw_level
 		jsr draw_level
@@ -259,6 +260,8 @@ move_n
 		clc
 		adc man
 		tax  ; x = new wanted position
+		lda #0
+		sta k  ; flag: level completed
 		lda level_map,x
 		cmp #bWALL
 		beq trmpl1
@@ -272,13 +275,24 @@ move_n
 		lda level_map,y
 		and #[bWALL|bSTONE]
 		bne trmpl1
+		; move stone
 		lda level_map,y
 		ora #bSTONE
-		sta level_map,y
+		sta level_map,y  ; y is now free
 		lda level_map,x
 		and #~bSTONE
 		sta level_map,x
+		; check if level completed: if one cell == stone -> not completed
+		ldy lev_size
+lwin	lda [level_map-1],y
+		cmp #bSTONE
+		beq	only_man  ; not completed
+		dey
+		bne lwin
+		; completed!
+		inc k
 only_man
+		; move man
 		lda level_map,x
 		ora #bMAN
 		sta level_map,x
@@ -287,7 +301,37 @@ only_man
 		and #~bMAN
 		sta level_map,y
 		stx man  ; new position
+		lda k  ; completed?
+		bne level_complete
 		jmp redraw_level
+
+
+; ----------------------------------------------------------------------
+
+level_complete
+		SUBROUTINE
+		jsr draw_level  ; draw with last (winning) move
+		jsr delay_1s
+		jsr delay_1s
+		; increment level and load new level, including secret code
+		lda level
+		cmp #LEV_NUM
+		beq .l1
+		inc level
+.l1		jsr load_level
+		; show screen with secret code
+		jsr clearscreen
+		prn_str video+22*10+1, str_lev_code
+		lda #<[video+22*10+16]
+		sta scrn_ptr
+		lda #>[video+22*10+16]
+		sta scrn_ptr+1
+		lda level
+		jsr print_decimal
+		jsr delay_1s
+		jsr delay_1s
+		jsr getchar
+		jmp start_level
 
 
 ; ----------------------------------------------------------------------
@@ -326,7 +370,7 @@ str_main1	dc "***********", 10
 			dc "C: ENTER LEVEL CODE", 24
 			dc "H: HELP", 0
 
-str_help1	dc "IN-GAME CONTROLS", 22, 23
+str_help1	dc "IN-GAME CONTROLS", 22, 22, 22
 			dc "ARROWS,JOYSTICK: MOVE ", 21
 			dc "W,A,S,Z: SCROLL VIEW", 23
 			dc "N,P: NEXT/PREV. LEVEL", 22
@@ -336,12 +380,12 @@ str_help1	dc "IN-GAME CONTROLS", 22, 23
 			dc "F7: RESET LEVEL", 28
 			dc "H: THIS HELP", 0
 
+str_lev_code	dc "CODE FOR LEVEL    :", 0
 
 ; ----------------------------------------------------------------------
 
-level_load
-		; input: level
-		; level must be in range 1..LEV_NUM
+load_level
+		; input: level (must be in range 1..LEV_NUM)
 		SUBROUTINE
 		; reset level pointer
 		lda #<level_data
@@ -434,6 +478,16 @@ level_load
 		sta level_map,x
 		dec k
 		bne .l6
+		; compute code for this level, from last 6 bytes (going backward with y)
+		ldx #6
+.lcode	dey
+		lda (level_ptr),y
+		and #%00111100
+		lsr
+		lsr
+		sta [lev_code-1],x
+		dex
+		bne .lcode
 		; set man at proper position
 		ldx man
 		lda level_map,x
@@ -690,6 +744,31 @@ print_decimal
 		adc #48+CHAR_OFF
 		iny
 		sta (scrn_ptr),y  ; third digit
+		rts
+
+
+; ----------------------------------------------------------------------
+
+delay
+		; short delay, for x = 0 -> about 1/3 sec
+		; input : x
+		SUBROUTINE
+.loop1	ldy #255
+.loop2	dey
+		bne .loop2
+		dex
+		bne .loop1
+		rts
+
+
+; ----------------------------------------------------------------------
+
+delay_1s
+		SUBROUTINE
+		lda 162  ; jiffy clock
+		adc #60
+.loop1	cmp 162
+		bne .loop1
 		rts
 
 
