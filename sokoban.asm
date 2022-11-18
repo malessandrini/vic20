@@ -79,6 +79,7 @@ cols		ds 1  ; columns of current level
 man			ds 1  ; position of man
 lev_size	ds 1  ; number of total cells of level
 lev_code	ds 6  ; secret code for level (0..15 for every byte)
+usr_code	ds 6  ; code entered by user
 scrn_ptr	ds 2  ; pointer for screen memory (X or Y register not enough to sweep all screen)
 extra_ptr	ds 2  ; pointer for different uses (color memory, strings, ...)
 i			ds 1  ; generic temp. variable
@@ -180,8 +181,27 @@ help_menu
 enter_code
 		jsr clearscreen
 		prn_str video+22*10+5, str_enter_code
-		jsr getchar
-		jmp main_menu
+		lda #0
+		sta i
+lkey	jsr getchar
+		cmp #'A
+		bcc lkey
+		cmp #['Z]+1
+		bcs lkey
+		sec
+		sbc #'A
+		ldx i
+		sta usr_code,x  ; starting from 0
+		clc
+		adc #1  ; printable code (starting from 'A')
+		sta [video+22*13+7],x
+		inx
+		stx i  ; x will be modified by getchar
+		cpx #6
+		bne lkey
+		lda #10
+		jsr delay_jiffy
+		jmp check_code
 
 
 ; ----------------------------------------------------------------------
@@ -322,8 +342,8 @@ only_man
 level_complete
 		SUBROUTINE
 		jsr draw_level  ; draw with last (winning) move
-		jsr delay_1s
-		jsr delay_1s
+		lda #90
+		jsr delay_jiffy
 		; increment level and load new level, including secret code
 		lda level
 		cmp #LEV_NUM
@@ -349,9 +369,36 @@ level_complete
 		sta [video+22*13+6],x
 		dex
 		bne .l2
-		jsr delay_1s
-		jsr delay_1s
+		lda #90
+		jsr delay_jiffy
 		jsr getchar
+		jmp start_level
+
+
+; ----------------------------------------------------------------------
+
+check_code
+		SUBROUTINE
+		lda level
+		pha  ; save current level if code not valid
+		; iterate for all values of level (loading level every time)
+		lda #LEV_NUM
+		sta level  ; loop from LEV_NUM to 1
+.l1		jsr load_level  ; set code for this level
+		ldx #6
+.l2		lda [lev_code-1],x
+		cmp [usr_code-1],x
+		bne .wrong
+		dex
+		bne .l2
+		jmp .right
+.wrong	dec level
+		bne .l1
+		pla  ; not found, restore level
+		sta level
+		jmp main_menu
+.right
+		pla
 		jmp start_level
 
 
@@ -775,24 +822,11 @@ print_decimal
 
 ; ----------------------------------------------------------------------
 
-delay
-		; short delay, for x = 0 -> about 1/3 sec
-		; input : x
+delay_jiffy
+		; input: A = 1/60 seconds
 		SUBROUTINE
-.loop1	ldy #255
-.loop2	dey
-		bne .loop2
-		dex
-		bne .loop1
-		rts
-
-
-; ----------------------------------------------------------------------
-
-delay_1s
-		SUBROUTINE
-		lda 162  ; jiffy clock
-		adc #60
+		clc
+		adc 162  ; jiffy clock
 .loop1	cmp 162
 		bne .loop1
 		rts
