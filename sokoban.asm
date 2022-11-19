@@ -1022,3 +1022,9 @@ lvl_unpack
 		org lvl_unpack
 level_map	ds MAX_LEV_ROUND  ; max size of levels, rounded to bitmap size
 levmaplimit
+
+
+; TODO
+; memory layout for both expansions
+; locked levels
+
