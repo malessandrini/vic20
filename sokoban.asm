@@ -161,7 +161,7 @@ main0	jsr getchar
 		cmp #32
 		beq start_level
 		cmp #'H
-		beq help_menu
+		beq help_menu1
 		cmp #'C
 		beq enter_code
 		jmp main0
@@ -173,7 +173,14 @@ help_menu
 		jsr clearscreen
 		prn_str video+22*1+3, str_help1
 		jsr getchar
-		jmp main_menu
+		rts
+help_menu1
+		jsr help_menu
+mmenu	jmp main_menu
+help_menu2
+		jsr help_menu
+		jsr clearscreen
+		jmp redraw_level
 
 
 ; ----------------------------------------------------------------------
@@ -222,6 +229,10 @@ wait_input
 		beq move_left
 		cmp #29
 		beq move_right
+		cmp #133  ; f1
+		beq mmenu
+		cmp #'H
+		beq help_menu2
 		cmp #'N
 		beq go_next
 		cmp #'P
@@ -234,6 +245,8 @@ wait_input
 		beq scroll_right
 		cmp #'Z
 		beq scroll_down
+		cmp #136  ; f7
+		beq start_level
 		jmp wait_input
 move_up
 		lda #0
@@ -277,7 +290,7 @@ scroll_down
 		jmp redraw_level
 scroll_left
 		lda map_c
-		beq wait_input
+		beq trmpl1
 		dec map_c
 		jmp redraw_level
 scroll_right
