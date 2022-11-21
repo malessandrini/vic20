@@ -19,10 +19,9 @@
 ;
 ; configuration for 8k expansion:
 ;  $1000: video memory
-;  $1200 - $1bff: code, 2560 bytes
+;  $1200 - $1bff: code (first chunk), 2560 bytes
 ;  $1c00 - $nnnn: user-defined characters (see note above)
-;  $nnnn+1 - $3fff(or more for bigger expansions): level data + extra code
-;  (user-defined chars and level data may be moved in place at startup if final binary is shorter)
+;  $nnnn+1 - $3fff(or more for bigger expansions): code and level data (second chunk)
 
 
 ;=======================================================================
@@ -32,16 +31,19 @@
 
 	IFCONST EXP3k
 ramstart	equ $0400
+ramend		equ $1c00
 video		equ $1e00   ; video memory
 vcolor		equ $9600  ; color memory
 sysaddr		equ	"1037"
 	ENDIF
 	IFCONST EXP8k
 ramstart	equ $1200
+ramend		equ $4000
 video		equ $1000   ; video memory
 vcolor		equ $9400  ; color memory
 sysaddr		equ	"4621"
 	ENDIF
+charmem		equ $1c00
 GETIN		equ $ffe4  ; kernal, read keyboard input from queue
 
 LEV_NUM			equ 153
@@ -152,6 +154,17 @@ start
 		lda 657
 		ora #128
 		sta 657
+
+	IFCONST EXP3k
+		; copy user defined chars to proper address
+		ldx #[udcend-udcstart]
+		ldy #0
+.l1		lda udcstart,y
+		sta charmem,y
+		iny
+		dex
+		bne .l1
+	ENDIF
 
 		; start with level 1
 		lda #1
@@ -946,6 +959,30 @@ clearscreen
 ;=======================================================================
 ; ----------------------------------------------------------------------
 ;=======================================================================
+; user defined chars
+
+; for 3k expansion: normal data within the rest of the program,
+;  they will be copied at $1c00 at run-time
+; for 8k expansion: allocated directly at $1c00, code must be split
+;  in 2 chunks, before and after user characters
+
+	IFCONST EXP8k
+chunk1end
+		IF chunk1end > charmem
+			ERR
+		ENDIF
+		org charmem
+	ENDIF
+
+udcstart
+		ds 192,65  ; TODO
+udcend
+
+; in both cases code continues after this section
+
+;=======================================================================
+; ----------------------------------------------------------------------
+;=======================================================================
 ; level data
 
 ; format for each level:
@@ -1075,15 +1112,17 @@ level_data_end
 ; ----------------------------------------------------------------------
 ;=======================================================================
 ; memory area for uncompressed level
+; must be last section, so to not increase binary size (uninitialized memory)
 
 lvl_unpack
 		seg.u level_unpack
 		org lvl_unpack
 level_map	ds MAX_LEV_ROUND  ; max size of levels, rounded to bitmap size
-levmaplimit
 
 
-; TODO
-; memory layout for both expansions
-; locked levels
-
+;
+fulllimit
+		; check safe limit of full code
+		IF fulllimit > ramend
+			ERR
+		ENDIF
