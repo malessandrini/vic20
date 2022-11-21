@@ -215,6 +215,7 @@ lkey	jsr getchar
 
 start_level
 		jsr clearscreen
+reload_level
 		jsr load_level
 		; TODO: clear game variables
 redraw_level
@@ -246,20 +247,28 @@ wait_input
 		cmp #'Z
 		beq scroll_down
 		cmp #136  ; f7
-		beq start_level
+		beq reload_level
 		jmp wait_input
 move_up
+		lda #0
+		sta j  ; undo info
 		lda #0
 		sec
 		sbc cols  ; -cols
 		jmp move_n
 move_down
+		lda #1
+		sta j  ; undo info
 		lda cols
 		jmp move_n
 move_left
+		lda #2
+		sta j  ; undo info
 		lda #-1
 		jmp move_n
 move_right
+		lda #3
+		sta j  ; undo info
 		lda #1
 		jmp move_n
 go_next
@@ -279,13 +288,13 @@ trmpl1	jmp wait_input
 
 scroll_up
 		lda map_r
-		beq wait_input
+		beq trmpl1
 		dec map_r
 		jmp redraw_level
 scroll_down
 		lda map_r
 		cmp delta_r
-		beq wait_input
+		beq trmpl1
 		inc map_r
 		jmp redraw_level
 scroll_left
@@ -300,6 +309,7 @@ scroll_right
 		inc map_c
 		jmp redraw_level
 move_n
+		; j is the byte for undo, except stone information
 		sta i  ; save increment in case of stone push
 		clc
 		adc man
@@ -320,6 +330,9 @@ move_n
 		and #[bWALL|bSTONE]
 		bne trmpl1
 		; move stone
+		lda j
+		ora #8
+		sta j  ; undo information
 		lda level_map,y
 		ora #bSTONE
 		sta level_map,y  ; y is now free
@@ -345,6 +358,7 @@ only_man
 		and #~bMAN
 		sta level_map,y
 		stx man  ; new position
+		; TODO: save undo information (from j)
 		lda k  ; completed?
 		bne level_complete
 		jmp redraw_level
