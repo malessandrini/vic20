@@ -48,6 +48,7 @@ LEV_NUM			equ 153
 MAX_LEV_SIZE	equ 220
 MAX_LEV_BMP		equ [220 + 7] / 8
 MAX_LEV_ROUND	equ MAX_LEV_BMP * 8
+UNDO_MAX		equ 192
 
 bEMPTY		equ 0
 bWALL		equ 1
@@ -96,6 +97,10 @@ draw_r		ds 1  ; how many cells to draw
 draw_c		ds 1
 delta_r		ds 1  ; max value for map_r (scrolling)
 delta_c		ds 1
+; variables depending on game progress
+undo_ptr	ds 1
+undo_num	ds 1
+move_count	ds 2  ; 2 bytes in BCD format (4 decimal digits)
 
 ;
 zplimit
@@ -111,6 +116,9 @@ zplimit
 ; tape buffer area, 192 bytes (maybe some more before and after)
 		seg.u tapebuffer
 		org 828
+
+; undo information are stored in a circular stack, where older entries are overwritten
+undo_stack	ds UNDO_MAX
 
 ;
 tpbuflimit
@@ -216,8 +224,7 @@ lkey	jsr getchar
 start_level
 		jsr clearscreen
 reload_level
-		jsr load_level
-		; TODO: clear game variables
+		jsr load_level  ; also clears game-progress variables
 redraw_level
 		jsr draw_level
 wait_input
@@ -431,6 +438,38 @@ check_code
 
 ; ----------------------------------------------------------------------
 
+inc_move_count
+		SUBROUTINE
+		sed
+		clc
+		lda #1
+		adc move_count  ; decimal
+		sta move_count
+		lda #0
+		adc move_count+1  ; decimal with carry
+		sta move_count+1
+		cld
+		rts
+
+
+; ----------------------------------------------------------------------
+
+dec_move_count
+		SUBROUTINE
+		sed
+		sec
+		lda move_count
+		sbc #1  ; decimal
+		sta move_count
+		lda move_count+1
+		sbc #0  ; decimal with borrow
+		sta move_count+1
+		cld
+		rts
+
+
+; ----------------------------------------------------------------------
+
 map_char
 		dc 32, 32, 32, 32  ; empty
 		dc 102, 102, 102, 102  ; wall
@@ -487,6 +526,12 @@ str_enter_code
 load_level
 		; input: level (must be in range 1..LEV_NUM)
 		SUBROUTINE
+		; clear variables associated with a running level, so we don't risk them being incoherent
+		lda #0
+		sta undo_ptr
+		sta undo_num
+		sta move_count
+		sta move_count+1
 		; reset level pointer
 		lda #<level_data
 		sta level_ptr
