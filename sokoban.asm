@@ -497,16 +497,16 @@ map_char
 		dc 81, 73, 89, 75  ; man + goal
 map_color
 		dc 6, 6, 6, 6
+		dc 1, 1, 1, 1
+		dc 5, 5, 5, 5
+		dc 6, 6, 6, 6
+		dc 2, 2, 2, 2
+		dc 6, 6, 6, 6
+		dc 2, 2, 5, 5
 		dc 6, 6, 6, 6
 		dc 6, 6, 6, 6
 		dc 6, 6, 6, 6
-		dc 6, 6, 6, 6
-		dc 6, 6, 6, 6
-		dc 6, 6, 6, 6
-		dc 6, 6, 6, 6
-		dc 6, 6, 6, 6
-		dc 6, 6, 6, 6
-		dc 6, 6, 6, 6
+		dc 6, 5, 6, 5
 
 str_main1	dc "***********", 10
 			dc "*", 8,   "*", 10
@@ -712,6 +712,10 @@ draw_level
 		sta scrn_ptr
 		lda #>[video+22]
 		sta scrn_ptr+1
+		lda #<[vcolor+22]
+		sta extra_ptr
+		lda #>[vcolor+22]
+		sta extra_ptr+1
 		; increment row according to scr_r
 		ldx scr_r
 		beq .l1a
@@ -721,7 +725,13 @@ draw_level
 		sta scrn_ptr
 		bcc .l1p
 		inc scrn_ptr+1
-.l1p	dex
+.l1p	lda #44
+		clc
+		adc extra_ptr
+		sta extra_ptr
+		bcc .l1pp
+		inc extra_ptr+1
+.l1pp	dex
 		bne .l1
 		; increment column according to scr_c
 .l1a	lda scr_c
@@ -731,7 +741,14 @@ draw_level
 		sta scrn_ptr
 		bcc .l1q
 		inc scrn_ptr+1
-.l1q
+.l1q	lda scr_c
+		asl
+		clc
+		adc extra_ptr
+		sta extra_ptr
+		bcc .l1qq
+		inc extra_ptr+1
+.l1qq
 		lda draw_r
 		sta i  ; loop for row
 		lda #0
@@ -763,10 +780,14 @@ draw_level
 		tax
 		lda map_char,x  ; character for this cell value
 		sta (scrn_ptr),y  ; first char
+		lda map_color,x
+		sta (extra_ptr),y  ; first char color
 		iny
 		inx
 		lda map_char,x
 		sta (scrn_ptr),y  ; second char
+		lda map_color,x
+		sta (extra_ptr),y  ; second char color
 		tya
 		clc
 		adc #21
@@ -774,10 +795,14 @@ draw_level
 		inx
 		lda map_char,x
 		sta (scrn_ptr),y  ; third char
+		lda map_color,x
+		sta (extra_ptr),y  ; third char color
 		iny
 		inx
 		lda map_char,x
 		sta (scrn_ptr),y  ; fourth char
+		lda map_color,x
+		sta (extra_ptr),y  ; fourth char color
 		tya
 		sec
 		sbc #21
@@ -789,7 +814,7 @@ draw_level
 		clc
 		adc k
 		sta k
-		; update scrn_ptr on next line
+		; update scrn_ptr and extra_ptr on next line
 		lda #44
 		clc
 		adc scrn_ptr
@@ -797,17 +822,52 @@ draw_level
 		lda #0
 		adc scrn_ptr+1
 		sta scrn_ptr+1
+		lda #44
+		clc
+		adc extra_ptr
+		sta extra_ptr
+		lda #0
+		adc extra_ptr+1
+		sta extra_ptr+1
 		dec i
 		bne .lr
 		; print level number
 		lda #12+CHAR_OFF  ; 'L'
 		sta video
-		lda #<[video+1]
+		lda #<[video+2]
 		sta scrn_ptr
-		lda #>[video+1]
+		lda #>[video+2]
 		sta scrn_ptr+1
 		lda level
 		jsr print_decimal
+		; print moves (BCD variable)
+		clc
+		lda #13+CHAR_OFF  ; 'M'
+		sta video+16
+		lda move_count+1
+		and #$F0
+		lsr
+		lsr
+		lsr
+		lsr
+		adc #48+CHAR_OFF
+		sta video+18
+		lda move_count+1
+		and #$0F
+		adc #48+CHAR_OFF
+		sta video+19
+		lda move_count
+		and #$F0
+		lsr
+		lsr
+		lsr
+		lsr
+		adc #48+CHAR_OFF
+		sta video+20
+		lda move_count
+		and #$0F
+		adc #48+CHAR_OFF
+		sta video+21
 		rts
 
 
