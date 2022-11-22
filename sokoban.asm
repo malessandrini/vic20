@@ -101,7 +101,8 @@ delta_r		ds 1  ; max value for map_r (scrolling)
 delta_c		ds 1
 ; variables depending on game progress
 undo_ptr	ds 1
-undo_num	ds 1
+undo_tot	ds 1
+undo_cur	ds 1
 move_count	ds 2  ; 2 bytes in BCD format (4 decimal digits)
 
 ;
@@ -398,8 +399,22 @@ only_man
 level_complete
 		SUBROUTINE
 		jsr draw_level  ; draw with last (winning) move
-		lda #90
+		; end-of-level animation
+		ldy #20
+.la		ldx man
+		lda level_map,x
+		eor #bMAN
+		sta level_map,x
+		tya
+		pha
+		jsr draw_level
+		lda #3
 		jsr delay_jiffy
+		pla
+		tay
+		dey
+		bne .la
+		jsr getchar
 		; increment level and load new level, including secret code
 		lda level
 		cmp #LEV_NUM
@@ -554,7 +569,8 @@ load_level
 		; clear variables associated with a running level, so we don't risk them being incoherent
 		lda #0
 		sta undo_ptr
-		sta undo_num
+		sta undo_tot
+		sta undo_cur
 		sta move_count
 		sta move_count+1
 		; reset level pointer
@@ -1231,3 +1247,13 @@ fulllimit
 		IF fulllimit > ramend
 			ERR
 		ENDIF
+
+
+; TODO
+; autoscrolling
+; locked levels
+; num moves
+; undo/redo
+; joystick
+; sound?
+; fill gap in 8k by moving routines there
