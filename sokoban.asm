@@ -58,7 +58,7 @@ bGOAL		equ 2
 bSTONE		equ 4
 bMAN		equ 8
 
-CHAR_OFF	equ 0  ; added to character code to switch to default character ROM
+CHAR_OFF	equ 128  ; added to character code to switch to default character ROM
 
 ; possible values of a cell: 0 (empty), 1 (wall), 2 (goal), 3 (NO), 4 (stone), 5 (NO), 6 (stone+goal),
 ;  7 (NO), 8 (man), 9 (NO), 10 (man+goal)
@@ -166,6 +166,11 @@ start
 		bne .l1
 	ENDIF
 
+		; activate user defined chars
+		lda #$0F
+		ora 36869
+		sta 36869
+
 		; start with level 1
 		lda #1
 		sta level
@@ -221,7 +226,7 @@ lkey	jsr getchar
 		ldx i
 		sta usr_code,x  ; starting from 0
 		clc
-		adc #1  ; printable code (starting from 'A')
+		adc #[1+CHAR_OFF]  ; printable code (starting from 'A')
 		sta [video+22*13+7],x
 		inx
 		stx i  ; x will be modified by getchar
@@ -484,17 +489,17 @@ dec_move_count
 ; ----------------------------------------------------------------------
 
 map_char
-		dc 32, 32, 32, 32  ; empty
-		dc 102, 102, 102, 102  ; wall
-		dc 85, 73, 74, 75  ; goal
+		dc 32+CHAR_OFF, 32+CHAR_OFF, 32+CHAR_OFF, 32+CHAR_OFF  ; empty
+		dc 0, 1, 2, 3  ; wall
+		dc 85+CHAR_OFF, 73+CHAR_OFF, 74+CHAR_OFF, 75+CHAR_OFF  ; goal
 		dc 63+CHAR_OFF, 63+CHAR_OFF, 63+CHAR_OFF, 63+CHAR_OFF  ; invalid
-		dc 78, 77, 77, 78  ; stone
+		dc 4, 5, 6, 7  ; stone
 		dc 63+CHAR_OFF, 63+CHAR_OFF, 63+CHAR_OFF, 63+CHAR_OFF  ; invalid
-		dc 78, 77, 95, 105  ; stone + goal
+		dc 78+CHAR_OFF, 77+CHAR_OFF, 95+CHAR_OFF, 105+CHAR_OFF  ; stone + goal
 		dc 63+CHAR_OFF, 63+CHAR_OFF, 63+CHAR_OFF, 63+CHAR_OFF  ; invalid
-		dc 87, 32, 89, 77  ; man
+		dc 87+CHAR_OFF, 32+CHAR_OFF, 89+CHAR_OFF, 77+CHAR_OFF  ; man
 		dc 63+CHAR_OFF, 63+CHAR_OFF, 63+CHAR_OFF, 63+CHAR_OFF  ; invalid
-		dc 81, 73, 89, 75  ; man + goal
+		dc 81+CHAR_OFF, 73+CHAR_OFF, 89+CHAR_OFF, 75+CHAR_OFF  ; man + goal
 map_color
 		dc 6, 6, 6, 6
 		dc 1, 1, 1, 1
@@ -532,6 +537,9 @@ str_lev_code
 
 str_enter_code
 			dc "ENTER CODE:", 22, 24, 30, "------", 0
+
+str_press_h
+			dc "PRESS ", 34, "H", 34, " FOR HELP", 0
 
 
 ; ----------------------------------------------------------------------
@@ -868,7 +876,11 @@ draw_level
 		and #$0F
 		adc #48+CHAR_OFF
 		sta video+21
-		rts
+		lda level
+		cmp #4
+		bcs .l3
+		prn_str [video+22*22+2],str_press_h
+.l3		rts
 
 
 ; ----------------------------------------------------------------------
@@ -1035,7 +1047,17 @@ chunk1end
 	ENDIF
 
 udcstart
-		ds 192,65  ; TODO
+		; wall
+		dc %11111100,%11111110,%11111110,%11111110,%10111110,%11111110,%11111100,%00000000
+		dc %00111111,%01101111,%01111111,%01111111,%01111111,%01111111,%00111111,%00000000
+		dc %01111111,%11111111,%11111111,%11111011,%11111111,%11111111,%01111111,%00000000
+		dc %11111100,%11111110,%11111110,%11111110,%11110110,%11111110,%11111100,%00000000
+		; stone
+		dc %00000001,%00000011,%00000011,%00000111,%00000111,%00001111,%00001111,%00011111
+		dc %10000000,%11000000,%01000000,%10100000,%10100000,%11010000,%11010000,%11101000
+		dc %00011111,%00111111,%00111111,%00101111,%00110111,%00011111,%00001111,%00000000
+		dc %11101000,%11110100,%11111100,%11111100,%11111100,%11111000,%11110000,%00000000
+		ds 128,65  ; TODO
 udcend
 
 ; in both cases code continues after this section
