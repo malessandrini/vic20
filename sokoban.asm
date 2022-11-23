@@ -547,9 +547,59 @@ undo_revert_move
 .l1		dex
 		stx undo_ptr
 		lda undo_stack,x
-		; TODO: apply
+		and #8
+		sta k  ; k = whether a stone has been moved
+		lda undo_stack,x
 		and #0x03
-
+		beq undo_up
+		cmp #1
+		beq undo_down
+		cmp #2
+		beq undo_left
+undo_right
+		lda #1
+		jmp undo_n
+undo_up
+		lda #0
+		sec
+		sbc cols  ; -cols
+		jmp undo_n
+undo_down
+		lda cols
+		jmp undo_n
+undo_left
+		lda #-1
+undo_n
+		sta i  ; original movement
+		lda man
+		sec
+		sbc i
+		tax  ; x = new man position
+		; was the stone moved?
+		lda k  ; k is now free
+		beq undo_man
+		; must undo stone too
+		lda i
+		clc
+		adc man
+		tay  ; y = current stone position
+		; undo stone
+		lda level_map,y
+		and #~bSTONE
+		sta level_map,y
+		ldy man
+		lda level_map,y
+		ora #bSTONE
+		sta level_map,y
+undo_man
+		ldy man
+		lda level_map,y
+		and #~bMAN
+		sta level_map,y
+		lda level_map,x
+		ora #bMAN
+		sta level_map,x
+		stx man
 .end	rts
 
 
@@ -1299,7 +1349,6 @@ fulllimit
 ; autoscrolling
 ; locked levels
 ; num moves
-; undo/redo
 ; joystick
 ; sound?
 ; fill gap in 8k by moving routines there
