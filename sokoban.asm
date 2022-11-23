@@ -102,7 +102,6 @@ delta_c		ds 1
 ; variables depending on game progress
 undo_ptr	ds 1
 undo_tot	ds 1
-undo_cur	ds 1
 move_count	ds 2  ; 2 bytes in BCD format (4 decimal digits)
 
 ;
@@ -278,6 +277,8 @@ wait_input
 		beq scroll_down
 		cmp #136  ; f7
 		beq reload_level
+		cmp #'U
+		beq undo_move
 		jmp wait_input
 move_up
 		lda #0
@@ -338,6 +339,9 @@ scroll_right
 		beq trmpl1
 		inc map_c
 		jmp redraw_level
+undo_move
+		jsr undo_revert_move
+		jmp redraw_level
 move_n
 		; j is the byte for undo, except stone information
 		sta i  ; save increment in case of stone push
@@ -388,7 +392,9 @@ only_man
 		and #~bMAN
 		sta level_map,y
 		stx man  ; new position
-		; TODO: save undo information (from j)
+		; save undo information (from j)
+		lda j
+		jsr undo_add_move  ; must not change k
 		lda k  ; completed?
 		bne level_complete
 		jmp redraw_level
@@ -507,6 +513,48 @@ dec_move_count
 
 ; ----------------------------------------------------------------------
 
+undo_add_move
+		; input: A
+		SUBROUTINE
+		; undo_ptr must be in a valid position (0 .. UNDO_MAX-1)
+		ldx undo_ptr
+		sta undo_stack,x
+		; inc pointer, rolling back to 0
+		inx
+		cpx #UNDO_MAX
+		bne .l1
+		ldx #0
+.l1		stx undo_ptr
+		; inc total, but only if < UNDO_MAX (otherwise will overwrite older entries)
+		lda #UNDO_MAX
+		cmp undo_tot
+		beq .l2
+		inc undo_tot
+.l2		rts
+
+
+; ----------------------------------------------------------------------
+
+undo_revert_move
+		SUBROUTINE
+		lda undo_tot
+		beq .end
+		dec undo_tot
+		; dec undo_ptr, rolling back to last position
+		ldx undo_ptr
+		bne .l1
+		ldx #UNDO_MAX
+.l1		dex
+		stx undo_ptr
+		lda undo_stack,x
+		; TODO: apply
+		and #0x03
+
+.end	rts
+
+
+; ----------------------------------------------------------------------
+
 map_char
 		dc 32+CHAR_OFF, 32+CHAR_OFF, 32+CHAR_OFF, 32+CHAR_OFF  ; empty
 		dc 0, 1, 2, 3  ; wall
@@ -546,7 +594,6 @@ str_help1	dc "IN-GAME CONTROLS", 22, 22, 22
 			dc "W,A,S,Z: SCROLL VIEW", 23
 			dc "N,P: NEXT/PREV. LEVEL", 22
 			dc "U,FIRE: UNDO MOVE", 26
-			dc "R: REDO MOVE", 31
 			dc "F1: EXIT TO MENU", 27
 			dc "F7: RESET LEVEL", 28
 			dc "H: THIS HELP", 0
@@ -570,7 +617,6 @@ load_level
 		lda #0
 		sta undo_ptr
 		sta undo_tot
-		sta undo_cur
 		sta move_count
 		sta move_count+1
 		; reset level pointer
@@ -1051,7 +1097,7 @@ clearscreen
 ;=======================================================================
 ; ----------------------------------------------------------------------
 ;=======================================================================
-; user defined chars
+; user-defined characters
 
 ; for 3k expansion: normal data within the rest of the program,
 ;  they will be copied at $1c00 at run-time
@@ -1257,3 +1303,4 @@ fulllimit
 ; joystick
 ; sound?
 ; fill gap in 8k by moving routines there
+; different brick edges
