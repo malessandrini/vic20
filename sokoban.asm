@@ -367,6 +367,7 @@ move_n
 		lda j
 		ora #8
 		sta j  ; undo information
+		jsr inc_move_count
 		lda level_map,y
 		ora #bSTONE
 		sta level_map,y  ; y is now free
@@ -591,6 +592,7 @@ undo_n
 		lda level_map,y
 		ora #bSTONE
 		sta level_map,y
+		jsr dec_move_count
 undo_man
 		ldy man
 		lda level_map,y
@@ -1348,8 +1350,7 @@ fulllimit
 ; TODO
 ; autoscrolling
 ; locked levels
-; num moves
 ; joystick
 ; sound?
-; fill gap in 8k by moving routines there
+; fill gap in 8k?
 ; different brick edges
