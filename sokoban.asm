@@ -57,6 +57,10 @@ bWALL		equ 1
 bGOAL		equ 2
 bSTONE		equ 4
 bMAN		equ 8
+; extra bits for graphical variations of wall,
+; only used together with bWALL
+bWALL1		equ 16  ; terminal left edge
+bWALL2		equ 32  ; terminal right edge
 
 CHAR_OFF	equ 128  ; added to character code to switch to default character ROM
 
@@ -351,8 +355,9 @@ move_n
 		lda #0
 		sta k  ; flag: level completed
 		lda level_map,x
-		cmp #bWALL
-		beq trmpl1
+		and #bWALL
+		bne trmpl1
+		lda level_map,x
 		and #bSTONE
 		beq only_man
 		; check if we can move the stone
@@ -407,7 +412,7 @@ level_complete
 		SUBROUTINE
 		jsr draw_level  ; draw with last (winning) move
 		; end-of-level animation
-		ldy #20
+		ldy #12
 .la		ldx man
 		lda level_map,x
 		eor #bMAN
@@ -826,7 +831,52 @@ load_level
 		sec
 		sbc #11
 		sta delta_c
-.l8		rts
+.l8		; adjust bWALL flags for graphical variations of walls
+		ldx #0  ; pointer in level_map
+		lda #0
+		sta i  ; row
+.l9r	ldy #0  ; column
+.l9c	lda level_map,x
+		and #bWALL
+		beq	.nochange
+		; it's a wall. First, test if no wall at left
+		cpy #0
+		beq .eleft
+		dex
+		lda level_map,x
+		inx
+		and #bWALL
+		bne .l10
+.eleft	; wall must be modified for terminal left edge
+		lda level_map,x
+		ora #bWALL1
+		sta level_map,x
+.l10	; second, test if no wall at right
+		iny
+		tya
+		dey
+		cmp cols  ; test if y == columns - 1
+		beq .eright
+		inx
+		lda level_map,x
+		dex
+		and #bWALL
+		bne .nochange
+.eright	; wall must be modified for terminal right edge
+		lda level_map,x
+		ora #bWALL2
+		sta level_map,x
+.nochange	; continue loop
+		inx
+		iny
+		cpy cols
+		bne .l9c
+		inc i
+		lda i
+		cmp rows
+		bne .l9r
+
+		rts
 
 
 ; ----------------------------------------------------------------------
@@ -901,6 +951,17 @@ draw_level
 		ldx k
 		inc k
 		lda level_map,x  ; next cell value
+		; if a wall, can be of different types
+		cmp #(bWALL|bWALL1)
+		bne .lz1
+		lda #11
+.lz1	cmp #(bWALL|bWALL2)
+		bne .lz2
+		lda #12
+.lz2	cmp #(bWALL|bWALL1|bWALL2)
+		bne .lz3
+		lda #13
+.lz3	and #$0F  ; TODO: remove
 		asl
 		asl
 		tax
