@@ -15,6 +15,7 @@
 ;  $0400 - $1bff(max): code + level data, 6144 bytes (level data = 3675 bytes)
 ;  $1c00: user-defined characters (convenient because falls back to character ROM by adding 128)
 ;   (possibly moved in place at startup if final binary is shorter)
+;  end-of-chars - $1dff: extra memory area
 ;  $1e00: video memory
 ;
 ; configuration for 8k expansion:
@@ -254,7 +255,7 @@ reload_level
 redraw_level
 		jsr draw_level
 wait_input
-		jsr getchar
+		jsr getchar_joy
 		cmp #145
 		beq move_up
 		cmp #17
@@ -636,9 +637,9 @@ map_color
 		dc 6, 6, 6, 6
 		dc 2+8, 2+8, 2+8, 2+8
 		dc 6, 6, 6, 6
-		dc 1+8, 1+8, 1+8, 1+8
+		dc 7+8, 7+8, 7+8, 7+8
 		dc 6, 6, 6, 6
-		dc 1+8, 1+8, 1+8, 1+8
+		dc 7+8, 7+8, 7+8, 7+8
 		dc 1, 1, 1, 1
 		dc 1, 1, 1, 1
 		dc 1, 1, 1, 1
@@ -1191,6 +1192,66 @@ getchar
 
 ; ----------------------------------------------------------------------
 
+getjoystick
+		; output: A (bits from 0: E, N, S, W, fire
+		SUBROUTINE
+		lda $911f
+		eor #$ff
+		and #$3c
+		ldx #$7f
+		sei
+		stx $9122
+		ldx $9120
+		bmi .l1
+		ora #$02
+.l1		ldx #$ff
+		stx $9122
+		cli
+		lsr
+		rts
+
+
+; ----------------------------------------------------------------------
+
+getchar_joy
+		; output: A
+		; empty keyboard buffer, than wait for new char or joystick
+		SUBROUTINE
+.l1		jsr GETIN
+		cmp #0
+		bne .l1
+.l2		jsr GETIN
+		cmp #0
+		beq .l3
+		rts  ; keyboard
+.l3		jsr getjoystick
+		cmp #0
+		beq .l2
+		; joystick activated, return simulated key: 29, 145, 17, 157, 'U'
+		cmp #1
+		bne .l4a
+		lda #29
+		rts
+.l4a	cmp #2
+		bne .l4b
+		lda #145
+		rts
+.l4b	cmp #4
+		bne .l4c
+		lda #17
+		rts
+.l4c	cmp #8
+		bne .l4d
+		lda #157
+		rts
+.l4d	cmp #16
+		bne .l2
+		lda #'U
+		rts
+
+
+; ----------------------------------------------------------------------
+
 clearscreen
 		SUBROUTINE
 		; screen and border color
@@ -1214,6 +1275,7 @@ clearscreen
 
 
 	IFCONST EXP8k
+hole	equ	charmem-.
 		ALLOCATE_CHARACTERS
 	ENDIF
 
@@ -1347,6 +1409,7 @@ level_data_end
 
 
 	IFCONST EXP3k
+hole	equ	charmem-.
 		ALLOCATE_CHARACTERS
 	ENDIF
 
@@ -1432,7 +1495,7 @@ udcstart
 		dc %10001010,%10000101,%10000101,%00000101,%00110101,%00110101,%00000101,%00000101
 		dc %10100010,%00010010,%00010110,%11010100,%11010100,%00010100,%00010100,%00010100
 		; 24: wall, variant1
-		dc %01111100,%11111110,%11111110,%11111110,%10111110,%11111110,%01111100,%00000000
+		dc %01111100,%11111110,%11111110,%11111110,%11111110,%11111110,%01111100,%00000000
 		; 25: wall, variant2
 		dc %01111100,%11101110,%11111110,%11111110,%11111110,%11111110,%01111100,%00000000
 udcend
