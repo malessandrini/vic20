@@ -95,6 +95,7 @@ j			ds 1  ; generic temp. variable
 k			ds 1  ; generic temp. variable
 joy_prev	ds 1  ; previous value of joystick for repetition
 joy_filter  ds 1  ; filter bits for joystick reading
+joy_rep		ds 2  ; manage joystick repetition rate (16 bit)
 ; for every level, the following variables tell how to draw the map
 ; in a 11x11 logical screen (2x2 chars for every cell), with possible
 ; scrolling for maps larger than 11 rows or columns
@@ -1233,14 +1234,33 @@ getchar_joy
 		beq .l3
 		rts  ; keyboard
 .l3		jsr getjoystick
-		cmp joy_prev
-		beq .l2
-		sta joy_prev
 		and joy_filter
+		cmp joy_prev
+		bne .joy_first  ; first command different from previous ones
+		; manage joystick repetition (from second repetition)
 		cmp #0
 		beq .l2
-		; joystick activated, for directions return simulated key: 29, 145, 17, 157,
+		dec joy_rep
+		bne .l2
+		dec joy_rep+1
+		bne .l2
+		; delay for repetition has passed
+		ldx #255
+		stx joy_rep
+		ldx #3
+		stx joy_rep+1
+		jmp .joy_read
+.joy_first  ; repetition delay is longer for first time
+		ldx #255
+		stx joy_rep
+		ldx #12
+		stx joy_rep+1
+.joy_read
+		; joystick reading, for directions return simulated key: 29, 145, 17, 157,
 		; for fire return pseudo-value 7 to distinguish from keyboard
+		sta joy_prev
+		cmp #0
+		beq .l2  ; new state is no-joystick
 		cmp #1
 		bne .l4a
 		lda #29
