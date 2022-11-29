@@ -93,6 +93,8 @@ extra_ptr	ds 2  ; pointer for different uses (color memory, strings, ...)
 i			ds 1  ; generic temp. variable
 j			ds 1  ; generic temp. variable
 k			ds 1  ; generic temp. variable
+joy_prev	ds 1  ; previous value of joystick for repetition
+joy_filter  ds 1  ; filter bits for joystick reading
 ; for every level, the following variables tell how to draw the map
 ; in a 11x11 logical screen (2x2 chars for every cell), with possible
 ; scrolling for maps larger than 11 rows or columns
@@ -152,6 +154,8 @@ start
 		txs
 
 		; initial setup
+		lda #255
+		sta joy_filter
 		; enable repeat for all keys
 		lda #128
 		sta 650
@@ -192,8 +196,10 @@ start
 main_menu
 		jsr clearscreen
 		prn_str video+22*1+5, str_main1
-main0	jsr getchar
+main0	jsr getchar_joy
 		cmp #32
+		beq start_level
+		cmp #7  ; joystick fire
 		beq start_level
 		cmp #'H
 		beq help_menu1
@@ -283,6 +289,8 @@ wait_input
 		cmp #136  ; f7
 		beq reload_level
 		cmp #'U
+		beq undo_move
+		cmp #7  ; joystick fire
 		beq undo_move
 		jmp wait_input
 move_up
@@ -427,7 +435,7 @@ level_complete
 		tay
 		dey
 		bne .la
-		jsr getchar
+		jsr getchar_or_fire
 		; increment level and load new level, including secret code
 		lda level
 		cmp #LEV_NUM
@@ -455,7 +463,7 @@ level_complete
 		bne .l2
 		lda #90
 		jsr delay_jiffy
-		jsr getchar
+		jsr getchar_or_fire
 		jmp start_level
 
 
@@ -649,7 +657,7 @@ str_main1	dc "***********", 10
 			dc "* SOKOBAN *", 10
 			dc "*", 8,   "*", 10
 			dc "***********", 30, 30, 9
-			dc "SPACE: START LEVEL", 25
+			dc "SPACE,FIRE: START", 26
 			dc "C: ENTER LEVEL CODE", 24
 			dc "H: HELP", 0
 
@@ -1193,7 +1201,7 @@ getchar
 ; ----------------------------------------------------------------------
 
 getjoystick
-		; output: A (bits from 0: E, N, S, W, fire
+		; output: A (bits from 0: E, N, S, W, fire)
 		SUBROUTINE
 		lda $911f
 		eor #$ff
@@ -1225,9 +1233,14 @@ getchar_joy
 		beq .l3
 		rts  ; keyboard
 .l3		jsr getjoystick
+		cmp joy_prev
+		beq .l2
+		sta joy_prev
+		and joy_filter
 		cmp #0
 		beq .l2
-		; joystick activated, return simulated key: 29, 145, 17, 157, 'U'
+		; joystick activated, for directions return simulated key: 29, 145, 17, 157,
+		; for fire return pseudo-value 7 to distinguish from keyboard
 		cmp #1
 		bne .l4a
 		lda #29
@@ -1246,7 +1259,23 @@ getchar_joy
 		rts
 .l4d	cmp #16
 		bne .l2
-		lda #'U
+		lda #7
+		rts
+
+
+; ----------------------------------------------------------------------
+
+getchar_or_fire
+		; output: A
+		; wait for keyboard or joystick (fire button only)
+		SUBROUTINE
+		lda #16
+		sta joy_filter
+		jsr getchar_joy
+		tax
+		lda #255
+		sta joy_filter
+		txa
 		rts
 
 
