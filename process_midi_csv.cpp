@@ -1,3 +1,23 @@
+/*
+ * VIC 20 registers
+ * 0 low  tone: f =  3995/(255-x)  or   4330/(255-x) PAL
+ * 1 mid  tone: f =  7990/(255-x)  or   8660/(255-x) PAL
+ * 2 high tone: f = 15980/(255-x)  or  17320/(255-x) PAL
+ *
+ * min notes:
+ * low tone:  x=128 → f=31.46  (midi 23, B0)
+ *               or   f=34.09  (midi 25, C1#) PAL
+ * mid tone:  x=128 → f=62.91  (midi 35, B1)
+ *               or   f=68.19  (midi 37, C2#) PAL
+ * high tone: x=128 → f=125.83 (midi 47, B2)
+ *               or   f=136.38 (midi 48, C3#) PAL
+ *
+ * inverse formula: x = 255 - CLK/f
+ *
+ * see https://newt.phys.unsw.edu.au/jw/notes.html
+*/
+
+
 #include <iostream>
 #include <cstdio>
 #include <string>
@@ -9,6 +29,9 @@
 #include <cmath>
 #include <algorithm>
 using namespace std;
+
+#define VIC_CLOCK 15980  // 17320 for PAL
+const unsigned divisor[] = {4, 2, 1};
 
 struct Note {
 	unsigned time, note;
@@ -22,8 +45,7 @@ struct Song {
 	map<unsigned, Track> tracks;
 	// space for extra fields
 };
-
-struct Channel {
+struct Tone {
 	unsigned note, time;
 };
 
@@ -31,8 +53,10 @@ struct Channel {
 unsigned str_to_num(const string &);  // throws
 vector<string> split(const string &);
 Song parse(ifstream &);
-vector<Channel> simplify(const Track &);
+vector<Tone> simplify(const Track &);
 float midi_2_freq(unsigned m) { return 440. * pow(2, (m - 69) / 12.); }
+float vic_2_freq(unsigned x, unsigned channel) { return (VIC_CLOCK / divisor[channel]) / (255. - x); }
+int freq_2_vic(float f, unsigned channel) { return (int)round(255 - (VIC_CLOCK / divisor[channel]) / f); }  // might be out of allowed range
 
 
 int main(int argc, char **argv) {
@@ -47,7 +71,7 @@ int main(int argc, char **argv) {
 	for (auto const &t: song.tracks)
 		cout << "notes: " << t.second.notes.size() << endl;
 	// process song for single-note output for each track
-	vector<vector<Channel>> channels;
+	vector<vector<Tone>> channels;
 	for (auto const &t: song.tracks) {
 		auto ch = simplify(t.second);
 		cout << "ch: " << ch.size() << endl;
@@ -65,6 +89,8 @@ int main(int argc, char **argv) {
 		min_note[i] = std::min_element(channels[i].cbegin(), channels[i].cend(), [](const auto &a, const auto &b){ return (a.note ? a.note : 200) < (b.note ? b.note : 200); })->note;
 	}
 	cout << min_note[0] << "," << max_note[0] << " " << min_note[1] << "," << max_note[1] << endl;
+	// we want tracks in order of octave
+	if (min_note[1] < min_note[0]) iter_swap(channels.begin(), channels.begin() + 1);
 }
 
 
@@ -111,12 +137,12 @@ Song parse(ifstream &f) {
 }
 
 
-vector<Channel> simplify(const Track &tr) {
-	vector<Channel> ch;
+vector<Tone> simplify(const Track &tr) {
+	vector<Tone> ch;
 	// set absolute times
-	if (tr.notes[0].time) ch.push_back(Channel{ 0, 0 });
+	if (tr.notes[0].time) ch.push_back(Tone{ 0, 0 });
 	for (auto const &note: tr.notes)
-		ch.push_back(Channel{ (note.on ? note.note : 0), note.time });
+		ch.push_back(Tone{ (note.on ? note.note : 0), note.time });
 	// if more than one note starts at the same absolute time, keep the higher
 	for (unsigned i = 0; i < ch.size() - 1; ++i) {
 		if (!ch[i].note) continue;
