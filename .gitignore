@@ -3,4 +3,5 @@
 *.d64
 *.sym
 gen_sokoban_data
+process_midi_csv
 
