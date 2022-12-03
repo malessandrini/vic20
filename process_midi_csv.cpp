@@ -32,6 +32,7 @@ using namespace std;
 
 #define VIC_CLOCK 15980  // 17320 for PAL
 const unsigned divisor[] = {4, 2, 1};
+const unsigned min_tone[] = {24, 36, 48};
 
 struct Note {
 	unsigned time, note;
@@ -45,22 +46,35 @@ struct Song {
 	map<unsigned, Track> tracks;
 	// space for extra fields
 };
-struct Tone {
-	unsigned note, time;
+struct ToneMidi {
+	unsigned channel, note, time;
+};
+class NoteGenerator {
+public:
+	NoteGenerator(unsigned fs);
+	void set_note(float f);
+	uint8_t step(); // 0 or 1
+private:
+	const unsigned fs;
+	unsigned count, limit;
+	uint8_t out = 0;
 };
 
 
+float midi_2_freq(unsigned m) { return 440. * pow(2, ((int)m - 69) / 12.); }
+float vic_2_freq(unsigned x, unsigned channel) { return (VIC_CLOCK / divisor[channel]) / (255. - x); }
+int freq_2_vic(float f, unsigned channel) { int n = round(255 - (VIC_CLOCK / divisor[channel]) / f);  return n < 128 ? 128 : n > 254 ? 254 : n; }
 unsigned str_to_num(const string &);  // throws
 vector<string> split(const string &);
 Song parse(ifstream &);
-vector<Tone> simplify(const Track &);
-float midi_2_freq(unsigned m) { return 440. * pow(2, (m - 69) / 12.); }
-float vic_2_freq(unsigned x, unsigned channel) { return (VIC_CLOCK / divisor[channel]) / (255. - x); }
-int freq_2_vic(float f, unsigned channel) { return (int)round(255 - (VIC_CLOCK / divisor[channel]) / f); }  // might be out of allowed range
+vector<ToneMidi> simplify(const Track &, unsigned id);
+vector<ToneMidi> interleave(const vector<ToneMidi> &, const vector<ToneMidi> &);
+void write_wav_file(const char *fname, unsigned fs, vector<uint8_t> const &data);
+vector<uint8_t> wav_mix(vector<vector<uint8_t>> const &);
 
 
 int main(int argc, char **argv) {
-	if (argc != 3) {
+	if (argc != 4) {
 		cerr << "Argument error" << endl;
 		return 1;
 	}
@@ -71,9 +85,10 @@ int main(int argc, char **argv) {
 	for (auto const &t: song.tracks)
 		cout << "notes: " << t.second.notes.size() << endl;
 	// process song for single-note output for each track
-	vector<vector<Tone>> channels;
+	vector<vector<ToneMidi>> channels;
+	unsigned id = 0;
 	for (auto const &t: song.tracks) {
-		auto ch = simplify(t.second);
+		auto ch = simplify(t.second, id++);
 		cout << "ch: " << ch.size() << endl;
 		//for (auto const &n: ch)	cout << "(" << n.note << "," << n.time << ")";	cout << endl;
 		channels.push_back(ch);
@@ -82,15 +97,80 @@ int main(int argc, char **argv) {
 		cerr << "Number of tracks is not 2" << endl;
 		return 1;
 	}
-	// compute which track has higher notes
-	unsigned max_note[2], min_note[2];
-	for (unsigned i = 0; i < 2; ++i) {
-		max_note[i] = std::max_element(channels[i].cbegin(), channels[i].cend(), [](const auto &a, const auto &b){ return a.note < b.note; })->note;
+	// compute which track has lower notes
+	unsigned min_note[2];
+	for (unsigned i = 0; i < 2; ++i)
 		min_note[i] = std::min_element(channels[i].cbegin(), channels[i].cend(), [](const auto &a, const auto &b){ return (a.note ? a.note : 200) < (b.note ? b.note : 200); })->note;
+	// we want tracks sorted by octave
+	if (min_note[1] < min_note[0]) {
+		iter_swap(channels.begin(), channels.begin() + 1);
+		std::swap(min_note[0], min_note[1]);
 	}
-	cout << min_note[0] << "," << max_note[0] << " " << min_note[1] << "," << max_note[1] << endl;
-	// we want tracks in order of octave
-	if (min_note[1] < min_note[0]) iter_swap(channels.begin(), channels.begin() + 1);
+	cout << min_note[0] << " " << min_note[1] << endl;
+	// move both tracks to the channel minimum (lower values are more precise)
+	for (unsigned i = 0; i < 2; ++i)
+		for (auto ch: channels[i]) ch.note -= (min_note[i] - min_tone[i+1]);
+
+	// interleave the two channels and convert times to durations
+	auto mixed = interleave(channels[0], channels[1]);
+	// truncate
+	mixed.resize(std::min(atoi(argv[3]), (int)mixed.size()));
+	mixed.push_back(ToneMidi{0, 0, 100});
+	mixed.push_back(ToneMidi{1, 0, 100});
+/*
+	vector<vector<ToneMidi>> channels_b(2);
+	for (unsigned i = 0; i < 2; ++i)
+		for (auto const &ch: channels[i]) channels_b[i].push_back(ToneMidi{i, ch.note, ch.time});
+	// convert to durations
+	for (unsigned i = 0; i < 2; ++i) {
+		for (auto it = channels_b[i].begin(); it != channels_b[i].end() - 1; ++it) it->time = (it+1)->time - it->time;
+		channels_b[i].back().time = 40;
+	}
+	vector<vector<uint8_t>> wave(2);
+	const unsigned fs = 8000;
+	for (unsigned i = 0; i < 2; ++i) {
+		NoteGenerator gen(fs);
+		for (const auto &ch: channels_b[i]) {
+			gen.set_note(vic_2_freq(freq_2_vic(midi_2_freq(ch.note), i+1), i+1));
+			for (unsigned t = 0; t < ch.time * 100; ++t) wave[i].push_back(gen.step() * 255);
+		}
+	}
+	write_wav_file(argv[2], fs, wav_mix(wave));
+*/
+	// generate wave file (for debug purpose)
+	const unsigned fs = 8000;
+	vector<uint8_t> wave;
+	NoteGenerator gen[] = {NoteGenerator(fs), NoteGenerator(fs)};
+	for (const auto &m: mixed) {
+		gen[m.channel].set_note(m.note ? vic_2_freq(freq_2_vic(midi_2_freq(m.note), m.channel + 1), m.channel + 1) : 0);
+		for (unsigned t = 0; t < m.time * 100; ++t) wave.push_back(gen[0].step() * 127 + gen[1].step() * 127);
+	}
+	write_wav_file(argv[2], fs, wave);
+	// generate binary data for the VIC; every event is 2 bytes:
+	//  1) bit 7 is the channel
+	//     (bit 0..6) + 127 = value (resulting in 127 (off) .. 254 (max))
+	//  2) duration in 1/60 seconds (interrupt rate)
+	//     if 0, the following event must be processed simultaneously
+	vector<uint8_t> hex;
+	for (const auto &m: mixed) {
+		uint8_t note = m.note ? vic_2_freq(freq_2_vic(midi_2_freq(m.note), m.channel + 1), m.channel + 1) : 0;  // 0 or 128..254
+		note = note ? note - 127 : 0;
+		unsigned t = m.time, t8;  // 1 midi time = 1/60 tick
+		do {
+			t8 = std::min(255u, t);
+			hex.push_back(note);
+			if (m.channel) hex.back() |= 128;
+			hex.push_back(t8);
+			t -= t8;
+		} while (t8 == 255);
+	}
+	cout << "Encoded size: " << hex.size() << "\n" << endl;
+	for (unsigned i = 0; i < hex.size(); i += 32) {
+		printf("\thex ");
+		for (unsigned j = 0; j < std::min((size_t)32, hex.size() - i); ++j)
+			printf("%02X", hex[i + j]);
+		printf("\n");
+	}
 }
 
 
@@ -137,12 +217,12 @@ Song parse(ifstream &f) {
 }
 
 
-vector<Tone> simplify(const Track &tr) {
-	vector<Tone> ch;
+vector<ToneMidi> simplify(const Track &tr, unsigned id) {
+	vector<ToneMidi> ch;
 	// set absolute times
-	if (tr.notes[0].time) ch.push_back(Tone{ 0, 0 });
+	if (tr.notes[0].time) ch.push_back(ToneMidi{ id, 0, 0 });
 	for (auto const &note: tr.notes)
-		ch.push_back(Tone{ (note.on ? note.note : 0), note.time });
+		ch.push_back(ToneMidi{ id, (note.on ? note.note : 0), note.time });
 	// if more than one note starts at the same absolute time, keep the higher
 	for (unsigned i = 0; i < ch.size() - 1; ++i) {
 		if (!ch[i].note) continue;
@@ -168,6 +248,7 @@ vector<Tone> simplify(const Track &tr) {
 		}
 	}
 	// test overlaps: note starting when another still playing -> keep the higher one
+/*
 	bool on = false;
 	unsigned curr = 0;
 	for (auto &note: ch) {
@@ -182,6 +263,7 @@ vector<Tone> simplify(const Track &tr) {
 			on = true;
 		}
 	}
+*/
 	// delete stops immediately followed by another note
 	for (unsigned i = 0; i < ch.size() - 1; ++i)
 		if (!ch[i].note && ch[i].time == ch[i + 1].time) {
@@ -189,4 +271,83 @@ vector<Tone> simplify(const Track &tr) {
 			--i;
 		}
 	return ch;
+}
+
+
+NoteGenerator::NoteGenerator(unsigned _fs): fs(_fs)
+{}
+
+
+void NoteGenerator::set_note(float f) {
+	limit = f ? fs / (2 * f) : 0;
+	if (count >= limit) count = 0;
+}
+
+
+uint8_t NoteGenerator::step() {
+	if (!limit) return out;
+	++count;
+	if (count >= limit) {
+		count = 0;
+		out = !out;
+	}
+	return out;
+}
+
+
+vector<ToneMidi> interleave(const vector<ToneMidi> &ch0, const vector<ToneMidi> &ch1) {
+	// first interleave channels with absolute times, sorted
+	vector<ToneMidi> result;
+	vector<ToneMidi>::const_iterator it0 = ch0.cbegin(), it1 = ch1.cbegin();
+	while (it0 != ch0.cend() || it1 != ch1.cend()) {
+		if (it0 == ch0.cend()) {
+			result.push_back(ToneMidi{1, it1->note, it1->time});
+			++it1;
+		}
+		else if (it1 == ch1.cend()) {
+			result.push_back(ToneMidi{0, it0->note, it0->time});
+			++it0;
+		}
+		else {
+			if (it1->time < it0->time) {
+				result.push_back(ToneMidi{1, it1->note, it1->time});
+				++it1;
+			}
+			else {
+				result.push_back(ToneMidi{0, it0->note, it0->time});
+				++it0;
+			}
+		}
+	}
+	// then convert to durations
+	for (auto it = result.begin(); it != result.end() - 1; ++it) it->time = (it+1)->time - it->time;
+	result.back().time = 40;
+	return result;
+}
+
+
+void write_wav_file(const char *fname, unsigned fs, vector<uint8_t> const &data) {
+	static uint8_t header[] = { 'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'A', 'V', 'E',
+		'f', 'm', 't', ' ', 16, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 8, 0,
+		'd', 'a', 't', 'a', 0, 0, 0, 0 };
+	*((uint32_t*)(header + 4)) = data.size() + 36;
+	*((uint32_t*)(header + 24)) = fs;
+	*((uint32_t*)(header + 28)) = fs;
+	*((uint32_t*)(header + 40)) = data.size();
+	FILE *f = fopen(fname, "wb");
+	fwrite(header, 1, 44, f);
+	if (fwrite(data.data(), 1, data.size(), f) != data.size()) throw runtime_error("Unable to write wav file");
+	fclose(f);
+}
+
+
+vector<uint8_t> wav_mix(vector<vector<uint8_t>> const &channels) {
+	const auto n = channels.size(), sz = min_element(channels.begin(), channels.end(), [](const auto &a, const auto &b){ return a.size() < b.size(); })->size();
+	vector<uint8_t> result(sz, 0);
+	for (unsigned i = 0; i < sz; ++i) {
+		float sum = 0;
+		for (unsigned j = 0; j < n; ++j) sum += channels[j][i];
+		result[i] = sum / n;
+	}
+	return result;
 }
