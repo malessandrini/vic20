@@ -53,7 +53,7 @@ class NoteGenerator {
 public:
 	NoteGenerator(unsigned fs);
 	void set_note(float f);
-	uint8_t step(); // 0 or 1
+	uint8_t step();  // 0 or 1
 private:
 	const unsigned fs;
 	unsigned count, limit;
@@ -117,43 +117,26 @@ int main(int argc, char **argv) {
 	mixed.resize(std::min(atoi(argv[3]), (int)mixed.size()));
 	mixed.push_back(ToneMidi{0, 0, 100});
 	mixed.push_back(ToneMidi{1, 0, 100});
-/*
-	vector<vector<ToneMidi>> channels_b(2);
-	for (unsigned i = 0; i < 2; ++i)
-		for (auto const &ch: channels[i]) channels_b[i].push_back(ToneMidi{i, ch.note, ch.time});
-	// convert to durations
-	for (unsigned i = 0; i < 2; ++i) {
-		for (auto it = channels_b[i].begin(); it != channels_b[i].end() - 1; ++it) it->time = (it+1)->time - it->time;
-		channels_b[i].back().time = 40;
-	}
-	vector<vector<uint8_t>> wave(2);
-	const unsigned fs = 8000;
-	for (unsigned i = 0; i < 2; ++i) {
-		NoteGenerator gen(fs);
-		for (const auto &ch: channels_b[i]) {
-			gen.set_note(vic_2_freq(freq_2_vic(midi_2_freq(ch.note), i+1), i+1));
-			for (unsigned t = 0; t < ch.time * 100; ++t) wave[i].push_back(gen.step() * 255);
-		}
-	}
-	write_wav_file(argv[2], fs, wav_mix(wave));
-*/
+
 	// generate wave file (for debug purpose)
 	const unsigned fs = 8000;
 	vector<uint8_t> wave;
 	NoteGenerator gen[] = {NoteGenerator(fs), NoteGenerator(fs)};
 	for (const auto &m: mixed) {
 		gen[m.channel].set_note(m.note ? vic_2_freq(freq_2_vic(midi_2_freq(m.note), m.channel + 1), m.channel + 1) : 0);
-		for (unsigned t = 0; t < m.time * 100; ++t) wave.push_back(gen[0].step() * 127 + gen[1].step() * 127);
+		for (unsigned t = 0; t < m.time * 100; ++t) wave.push_back(gen[0].step() * 64 + gen[1].step() * 64);
 	}
 	write_wav_file(argv[2], fs, wave);
 	// generate binary data for the VIC; every event is 2 bytes:
 	//  1) bit 7 is the channel
-	//     (bit 0..6) + 127 = value (resulting in 127 (off) .. 254 (max))
+	//     (bit 0..6) + 127 = value (resulting in 127 (off) .. 253 (max)) (254 is excluded because of the terminator)
 	//  2) duration in 1/60 seconds (interrupt rate)
 	//     if 0, the following event must be processed simultaneously
+	//  - FF is the terminator
 	vector<uint8_t> hex;
 	for (const auto &m: mixed) {
 		uint8_t note = m.note ? vic_2_freq(freq_2_vic(midi_2_freq(m.note), m.channel + 1), m.channel + 1) : 0;  // 0 or 128..254
+		if (note == 254) note = 253;
 		note = note ? note - 127 : 0;
 		unsigned t = m.time, t8;  // 1 midi time = 1/60 tick
 		do {
@@ -164,6 +147,7 @@ int main(int argc, char **argv) {
 			t -= t8;
 		} while (t8 == 255);
 	}
+	hex.push_back(0xFF);
 	cout << "Encoded size: " << hex.size() << "\n" << endl;
 	for (unsigned i = 0; i < hex.size(); i += 32) {
 		printf("\thex ");
