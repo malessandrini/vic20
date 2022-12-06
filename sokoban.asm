@@ -686,11 +686,11 @@ map_color
 		dc 1, 1, 1, 1
 		dc 1, 1, 1, 1
 
-str_main1	dc "***********", 10
-			dc "*", 8,   "*", 10
-			dc "* SOKOBAN *", 10
-			dc "*", 8,   "*", 10
-			dc "***********", 30, 30, 9
+str_main1	dc 176, 128, 128, 128, 128, 128, 128, 128, 128, 128, 174, 10
+			dc 157, 8, 157, 10
+			dc 157, " SOKOBAN ", 157, 10
+			dc 157, 8, 157, 10
+			dc 173, 128, 128, 128, 128, 128, 128, 128, 128, 128, 189, 30, 30, 9
 			dc "SPACE,FIRE: START", 26
 			dc "C: ENTER LEVEL CODE", 24
 			dc "H: HELP", 0
@@ -717,6 +717,8 @@ str_enter_code
 str_press_h
 			dc "PRESS ", 34, "H", 34, " FOR HELP", 0
 
+str_header
+			dc "LEVEL:", 5, "MOVES:", 0
 
 ; ----------------------------------------------------------------------
 
@@ -1072,18 +1074,15 @@ draw_level
 		beq .l25
 		jmp .lr
 		; print level number
-.l25	lda #12+CHAR_OFF  ; 'L'
-		sta video
-		lda #<[video+2]
+.l25	prn_str video,str_header
+		lda #<[video+6]
 		sta scrn_ptr
-		lda #>[video+2]
+		lda #>[video+6]
 		sta scrn_ptr+1
 		lda level
 		jsr print_decimal
 		; print moves (BCD variable)
 		clc
-		lda #13+CHAR_OFF  ; 'M'
-		sta video+16
 		lda move_count+1
 		and #$F0
 		lsr
@@ -1405,8 +1404,8 @@ music_irq
 		bne .end
 		dec music_dur
 		bne .end
-		; fetch new note
 		ldy #255
+		; fetch new note
 .fetch	iny
 		lda (music_ptr),y
 		cmp #$ff
@@ -1439,7 +1438,7 @@ music_irq
 		sta music_ptr
 		bcc .end
 		inc music_ptr+1
-.end	jmp $eabf
+.end	jmp $eabf  ; kernal irq routine
 
 	ELSE
 
@@ -1664,9 +1663,6 @@ fulllimit
 ; TODO
 ; autoscrolling
 ; locked levels
-; joystick
-; sound?
-; fill gap in 8k?
 ; annotate all routines
 
 
