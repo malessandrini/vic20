@@ -97,6 +97,7 @@ k			ds 1  ; generic temp. variable
 joy_prev	ds 1  ; previous value of joystick for repetition
 joy_filter  ds 1  ; filter bits for joystick reading
 joy_rep		ds 2  ; manage joystick repetition rate (16 bit)
+lev_unlock	ds 1  ; maximum level that's been unlocked
 ; for every level, the following variables tell how to draw the map
 ; in a 11x11 logical screen (2x2 chars for every cell), with possible
 ; scrolling for maps larger than 11 rows or columns
@@ -211,6 +212,7 @@ start
 		; start with level 1
 		lda #1
 		sta level
+		sta lev_unlock
 
 		jmp main_menu
 
@@ -301,7 +303,7 @@ wait_input
 		cmp #'H
 		beq help_menu2
 		cmp #'N
-		beq go_next
+		beq go_next_trmpl
 		cmp #'P
 		beq go_prev
 		cmp #'W
@@ -343,20 +345,8 @@ move_right
 		sta j  ; undo info
 		lda #1
 		jmp move_n
-go_next
-		; remove
-		lda #<str_level_locked
-		sta extra_ptr
-		lda #>str_level_locked
-		sta extra_ptr+1
-		jsr popup_screen
-		jmp redraw_level
-		;
-;		lda level
-;		cmp #LEV_NUM
-;		beq wait_input
-;		inc level
-;		jmp start_level
+go_next_trmpl
+		jmp go_next
 go_prev
 		lda level
 		cmp #1
@@ -397,6 +387,21 @@ toggle_music
 		eor music_on
 		sta music_on
 		jmp wait_input
+go_next
+		lda level
+		cmp #LEV_NUM  ; test we're not at last level
+		beq trmpl1
+		cmp lev_unlock  ; test we unlocked next level
+		bcc ok_next
+		lda #<str_level_locked
+		sta extra_ptr
+		lda #>str_level_locked
+		sta extra_ptr+1
+		jsr popup_screen
+		jmp redraw_level
+ok_next
+		inc level
+		jmp start_level
 move_n
 		; j is the byte for undo, except stone information
 		sta i  ; save increment in case of stone push
@@ -483,6 +488,11 @@ level_complete
 		cmp #LEV_NUM
 		beq .l1
 		inc level
+		lda lev_unlock
+		cmp level
+		bcs .l1
+		lda level
+		sta lev_unlock
 		; TODO: different thing after last level
 .l1		jsr load_level
 		; show screen with secret code
@@ -533,7 +543,12 @@ check_code
 		jmp main_menu
 .right
 		pla
-		jmp start_level
+		lda lev_unlock
+		cmp level
+		bcs .end
+		lda level
+		sta lev_unlock
+.end	jmp start_level
 
 
 ; ----------------------------------------------------------------------
@@ -1394,30 +1409,6 @@ getchar_or_fire
 		rts
 
 
-; ----------------------------------------------------------------------
-
-clearscreen
-		SUBROUTINE
-		; screen and border color
-		lda #14
-		sta 36879
-; space character
-		lda #32+CHAR_OFF
-		ldy #253
-.loop1	dey
-		sta video,y
-		sta video+253,y
-		bne .loop1
-; color
-		lda #1
-		ldy #253
-.loop3	dey
-		sta vcolor,y
-		sta vcolor+253,y
-		bne .loop3
-		rts
-
-
 	IFCONST MUSIC
 
 ; ----------------------------------------------------------------------
@@ -1519,6 +1510,30 @@ music_mute
 hole	equ	charmem-.
 		ALLOCATE_CHARACTERS
 	ENDIF
+
+
+; ----------------------------------------------------------------------
+
+clearscreen
+		SUBROUTINE
+		; screen and border color
+		lda #14
+		sta 36879
+; space character
+		lda #32+CHAR_OFF
+		ldy #253
+.loop1	dey
+		sta video,y
+		sta video+253,y
+		bne .loop1
+; color
+		lda #1
+		ldy #253
+.loop3	dey
+		sta vcolor,y
+		sta vcolor+253,y
+		bne .loop3
+		rts
 
 
 ;=======================================================================
@@ -1721,7 +1736,6 @@ fulllimit
 
 ; TODO
 ; autoscrolling
-; locked levels
 ; annotate all routines
 
 
