@@ -708,50 +708,44 @@ map_color
 		dc 1, 1, 1, 1
 		dc 1, 1, 1, 1
 		dc 1, 1, 1, 1
-
-str_main1	dc 176, 128, 128, 128, 128, 128, 128, 128, 128, 128, 174, 10
-			dc 157, 8, 157, 10
-			dc 157, " SOKOBAN ", 157, 10
-			dc 157, 8, 157, 10
-			dc 173, 128, 128, 128, 128, 128, 128, 128, 128, 128, 189, 30, 30, 9
-			dc "SPACE,FIRE: START", 26
-			dc "C: ENTER LEVEL CODE", 24
-			dc "H: HELP", 0
-
-str_help1	dc "IN-GAME CONTROLS", 22, 22, 22
-			dc "ARROWS,JOYSTICK: MOVE ", 21
-			dc "W,A,S,Z: SCROLL VIEW", 23
-			dc "N,P: NEXT/PREV. LEVEL", 22
-			dc "U,FIRE: UNDO MOVE", 26
-			dc "F1: EXIT TO MENU", 27
-			dc "F7: RESET LEVEL", 28
-			dc "H: THIS HELP"
+str_main1
+		dc 176, 128, 128, 128, 128, 128, 128, 128, 128, 128, 174, 10
+		dc 157, 8, 157, 10
+		dc 157, " SOKOBAN ", 157, 10
+		dc 157, 8, 157, 10
+		dc 173, 128, 128, 128, 128, 128, 128, 128, 128, 128, 189, 30, 30, 9
+		dc "SPACE,FIRE: START", 26
+		dc "C: ENTER LEVEL CODE", 24
+		dc "H: HELP", 0
+str_help1
+		dc "IN-GAME CONTROLS", 22, 22, 22
+		dc "ARROWS,JOYSTICK: MOVE ", 21
+		dc "W,A,S,Z: SCROLL VIEW", 23
+		dc "N,P: NEXT/PREV. LEVEL", 22
+		dc "U,FIRE: UNDO MOVE", 26
+		dc "F1: EXIT TO MENU", 27
+		dc "F7: RESET LEVEL", 28
+		dc "H: THIS HELP"
 	IFCONST MUSIC
-			dc 31, "M: MUSIC ON/OFF"
+		dc 31, "M: MUSIC ON/OFF"
 	ENDIF
-			dc 0
-
+		dc 0
 str_lev_code
-			dc "CODE FOR LEVEL    :", 0
-
+		dc "CODE FOR LEVEL    :", 0
 str_enter_code
-			dc "ENTER CODE:", 22, 24, 30, "------", 0
-
+		dc "ENTER CODE:", 22, 24, 30, "------", 0
 str_press_h
-			dc "PRESS ", 34, "H", 34, " FOR HELP", 0
-
+		dc "PRESS ", 34, "H", 34, " FOR HELP", 0
 str_header
-			dc "LEVEL:", 5, "MOVES:", 0
-
+		dc "LEVEL:", 5, "MOVES:", 0
 str_popup_frame
-			dc 176, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 174, 3
-			dc 157, 15, 157, 3
-			dc 157, 15, 157, 3
-			dc 157, 15, 157, 3
-			dc 173, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 189, 0
-
+		dc 176, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 174, 3
+		dc 157, 15, 157, 3
+		dc 157, 15, 157, 3
+		dc 157, 15, 157, 3
+		dc 173, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 189, 0
 str_level_locked
-			dc " LEVEL LOCKED ", 0
+		dc " LEVEL LOCKED ", 0
 
 
 ; ----------------------------------------------------------------------
