@@ -345,9 +345,9 @@ move_right
 		jmp move_n
 go_next
 		; remove
-		lda #<str_lev_code
+		lda #<str_level_locked
 		sta extra_ptr
-		lda #>str_lev_code
+		lda #>str_level_locked
 		sta extra_ptr+1
 		jsr popup_screen
 		jmp redraw_level
@@ -735,21 +735,35 @@ str_popup_frame
 			dc 157, 15, 157, 3
 			dc 173, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 189, 0
 
+str_level_locked
+			dc " LEVEL LOCKED ", 0
 
 
 ; ----------------------------------------------------------------------
 
 popup_screen
-		; input: extra_ptr (string)
+		; input: extra_ptr (string, 14 characters)
 		SUBROUTINE
-		jsr clearscreen
-		; set all characters to red
-		lda #2  ; red
-		ldy #253
+		; set space character for the popup area
+		lda #32+CHAR_OFF
+		ldy #18
 .loop1	dey
-		sta vcolor,y
-		sta vcolor+253,y
+		sta [video+9*22+2],y
+		sta [video+10*22+2],y
+		sta [video+11*22+2],y
+		sta [video+12*22+2],y
+		sta [video+13*22+2],y
 		bne .loop1
+		; set character color to red for the popup area
+		lda #2  ; red
+		ldy #18
+.loop2	dey
+		sta [vcolor+9*22+2],y
+		sta [vcolor+10*22+2],y
+		sta [vcolor+11*22+2],y
+		sta [vcolor+12*22+2],y
+		sta [vcolor+13*22+2],y
+		bne .loop2
 		; print string set by caller
 		lda #<[video+11*22+4]
 		sta scrn_ptr
@@ -763,9 +777,6 @@ popup_screen
 		jsr getchar_or_fire
 		jsr clearscreen
 		rts
-
-
-
 
 
 ; ----------------------------------------------------------------------
