@@ -344,15 +344,23 @@ move_right
 		lda #1
 		jmp move_n
 go_next
-		lda level
-		cmp #LEV_NUM
-		beq wait_input
-		inc level
-		jmp start_level
+		; remove
+		lda #<str_lev_code
+		sta extra_ptr
+		lda #>str_lev_code
+		sta extra_ptr+1
+		jsr popup_screen
+		jmp redraw_level
+		;
+;		lda level
+;		cmp #LEV_NUM
+;		beq wait_input
+;		inc level
+;		jmp start_level
 go_prev
 		lda level
 		cmp #1
-		beq wait_input
+		beq trmpl1
 		dec level
 		jmp start_level
 
@@ -719,6 +727,46 @@ str_press_h
 
 str_header
 			dc "LEVEL:", 5, "MOVES:", 0
+
+str_popup_frame
+			dc 176, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 174, 3
+			dc 157, 15, 157, 3
+			dc 157, 15, 157, 3
+			dc 157, 15, 157, 3
+			dc 173, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 189, 0
+
+
+
+; ----------------------------------------------------------------------
+
+popup_screen
+		; input: extra_ptr (string)
+		SUBROUTINE
+		jsr clearscreen
+		; set all characters to red
+		lda #2  ; red
+		ldy #253
+.loop1	dey
+		sta vcolor,y
+		sta vcolor+253,y
+		bne .loop1
+		; print string set by caller
+		lda #<[video+11*22+4]
+		sta scrn_ptr
+		lda #>[video+11*22+4]
+		sta scrn_ptr+1
+		jsr print_string
+		; print frame
+		prn_str video+9*22+2, str_popup_frame
+		lda #30
+		jsr delay_jiffy
+		jsr getchar_or_fire
+		jsr clearscreen
+		rts
+
+
+
+
 
 ; ----------------------------------------------------------------------
 
