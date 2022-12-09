@@ -26,6 +26,7 @@
 #include <fstream>
 #include <stdexcept>
 #include <map>
+#include <set>
 #include <cmath>
 #include <algorithm>
 using namespace std;
@@ -112,8 +113,14 @@ int main(int argc, char **argv) {
 	const unsigned fs = 8000;
 	vector<uint8_t> wave;
 	NoteGenerator gen[] = {NoteGenerator(fs), NoteGenerator(fs)};
+	float last_freq[2] = { 0, 0 };
+	unsigned last_note[2] = { 0, 0 };
 	for (const auto &m: mixed) {
-		gen[m.channel].set_note(m.note ? vic_2_freq(freq_2_vic(midi_2_freq(m.note), m.channel + 1), m.channel + 1) : 0);
+		float freq = m.note ? vic_2_freq(freq_2_vic(midi_2_freq(m.note), m.channel + 1), m.channel + 1) : 0;
+		if (freq == last_freq[m.channel] && m.note != last_note[m.channel]) freq = 0;
+		last_freq[m.channel] = freq;
+		last_note[m.channel] = m.note;
+		gen[m.channel].set_note(freq);
 		for (unsigned t = 0; t < m.time * 100; ++t) wave.push_back(gen[0].step() * 64 + gen[1].step() * 64);
 	}
 	write_wav_file(argv[2], fs, wave);
@@ -199,8 +206,22 @@ MultiTrack simplify(const Track &tr, unsigned id) {
 	MultiTrack ch;
 	// set absolute times
 	if (tr[0].time) ch.push_back(ToneMidi{ id, 0, 0 });
-	for (auto const &note: tr)
-		ch.push_back(ToneMidi{ id, (note.on ? note.note : 0), note.time });
+//	for (auto const &note: tr)
+//		ch.push_back(ToneMidi{ id, (note.on ? note.note : 0), note.time });
+	// at every instant, if multiple notes are playing, keep the higher one (but only as long as it's playing)
+	set<unsigned> playing;
+	for (auto const &note: tr) {
+		if (note.on) {
+			if (playing.empty() || *playing.rbegin() < note.note)
+				ch.push_back(ToneMidi{ id, note.note, note.time });
+			playing.insert(note.note);
+		}
+		else {
+			if (!playing.empty() && note.note == *playing.rbegin()) playing.clear();
+			playing.erase(note.note);
+			ch.push_back(ToneMidi{ id, playing.empty() ? 0 : *playing.rbegin(), note.time });
+		}
+	}
 	// if more than one note starts at the same absolute time, keep the higher
 	for (unsigned i = 0; i < ch.size() - 1; ++i) {
 		if (!ch[i].note) continue;
@@ -225,23 +246,6 @@ MultiTrack simplify(const Track &tr, unsigned id) {
 			else break;
 		}
 	}
-	// test overlaps: note starting when another still playing -> keep the higher one
-/*
-	bool on = false;
-	unsigned curr = 0;
-	for (auto &note: ch) {
-		if (!note.note) on = false;
-		else {
-			if (on) {
-				//cerr << "Warning: overlap at " << note.duration << endl;
-				if (curr > note.note) note.note = curr;
-				else curr = note.note;
-			}
-			else curr = note.note;
-			on = true;
-		}
-	}
-*/
 	// delete stops immediately followed by another note
 	for (unsigned i = 0; i < ch.size() - 1; ++i)
 		if (!ch[i].note && ch[i].time == ch[i + 1].time) {
