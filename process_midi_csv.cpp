@@ -101,10 +101,6 @@ int main(int argc, char **argv) {
 		std::swap(min_note[0], min_note[1]);
 	}
 	cout << min_note[0] << " " << min_note[1] << endl;
-	// move both tracks to the channel minimum (lower values are more precise)
-	for (unsigned i = 0; i < 2; ++i)
-		for (auto ch: channels[i]) ch.note -= (min_note[i] - min_tone[i+1]);
-
 	// interleave the two channels and convert times to durations
 	auto mixed = interleave(channels[0], channels[1]);
 	// truncate
