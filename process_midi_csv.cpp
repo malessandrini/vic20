@@ -63,7 +63,7 @@ int freq_2_vic(float f, unsigned channel) { int n = round(255 - (VIC_CLOCK / div
 unsigned str_to_num(const string &);  // throws
 vector<string> split(const string &);
 Song parse(ifstream &);
-MultiTrack simplify(const Track &, unsigned id);
+MultiTrack simplify(const Track &, unsigned id, bool keep_all_notes);
 MultiTrack interleave(const MultiTrack&, const MultiTrack&);
 void write_wav_file(const char *fname, unsigned fs, vector<uint8_t> const &data);
 
@@ -83,7 +83,8 @@ int main(int argc, char **argv) {
 	vector<MultiTrack> channels;
 	unsigned id = 0;
 	for (auto const &t: song) {
-		auto ch = simplify(t.second, id++);
+		auto ch = simplify(t.second, id, false);
+		++id;
 		cout << "ch: " << ch.size() << endl;
 		//for (auto const &n: ch)	cout << "(" << n.note << "," << n.time << ")";	cout << endl;
 		channels.push_back(ch);
@@ -113,13 +114,8 @@ int main(int argc, char **argv) {
 	const unsigned fs = 8000;
 	vector<uint8_t> wave;
 	NoteGenerator gen[] = {NoteGenerator(fs), NoteGenerator(fs)};
-	float last_freq[2] = { 0, 0 };
-	unsigned last_note[2] = { 0, 0 };
 	for (const auto &m: mixed) {
 		float freq = m.note ? vic_2_freq(freq_2_vic(midi_2_freq(m.note), m.channel + 1), m.channel + 1) : 0;
-		if (freq == last_freq[m.channel] && m.note != last_note[m.channel]) freq = 0;
-		last_freq[m.channel] = freq;
-		last_note[m.channel] = m.note;
 		gen[m.channel].set_note(freq);
 		for (unsigned t = 0; t < m.time * 100; ++t) wave.push_back(gen[0].step() * 64 + gen[1].step() * 64);
 	}
@@ -202,24 +198,28 @@ Song parse(ifstream &f) {
 }
 
 
-MultiTrack simplify(const Track &tr, unsigned id) {
+MultiTrack simplify(const Track &tr, unsigned id, bool keep_all_notes) {
 	MultiTrack ch;
 	// set absolute times
 	if (tr[0].time) ch.push_back(ToneMidi{ id, 0, 0 });
-//	for (auto const &note: tr)
-//		ch.push_back(ToneMidi{ id, (note.on ? note.note : 0), note.time });
-	// at every instant, if multiple notes are playing, keep the higher one (but only as long as it's playing)
-	set<unsigned> playing;
-	for (auto const &note: tr) {
-		if (note.on) {
-			if (playing.empty() || *playing.rbegin() < note.note)
-				ch.push_back(ToneMidi{ id, note.note, note.time });
-			playing.insert(note.note);
-		}
-		else {
-			if (!playing.empty() && note.note == *playing.rbegin()) playing.clear();
-			playing.erase(note.note);
-			ch.push_back(ToneMidi{ id, playing.empty() ? 0 : *playing.rbegin(), note.time });
+	if (!keep_all_notes) {
+		for (auto const &note: tr)
+			ch.push_back(ToneMidi{ id, (note.on ? note.note : 0), note.time });
+	}
+	else {
+		// at every instant, if multiple notes are playing, keep the higher one (but only as long as it's playing)
+		set<unsigned> playing;
+		for (auto const &note: tr) {
+			if (note.on) {
+				if (playing.empty() || *playing.rbegin() < note.note)
+					ch.push_back(ToneMidi{ id, note.note, note.time });
+				playing.insert(note.note);
+			}
+			else {
+				//if (!playing.empty() && note.note == *playing.rbegin()) playing.clear();
+				playing.erase(note.note);
+				ch.push_back(ToneMidi{ id, playing.empty() ? 0 : *playing.rbegin(), note.time });
+			}
 		}
 	}
 	// if more than one note starts at the same absolute time, keep the higher
