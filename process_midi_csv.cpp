@@ -193,6 +193,10 @@ Song parse(ifstream &f) {
 			song[tr].push_back(Note{ str_to_num(tok[1]), str_to_num(tok[4]),
 				(tok[2] == "Note_on_c" && str_to_num(tok[5])) });
 		}
+		else if (tok[2] == "Control_c" && str_to_num(tok[4]) == 64) {  // sustain
+			if (tok.size() != 6) throw_exc();
+			song[tr].push_back(Note{ str_to_num(tok[1]), 255 /* special value */, str_to_num(tok[5]) >= 64 });
+		}
 	}
 	return song;
 }
@@ -200,20 +204,25 @@ Song parse(ifstream &f) {
 
 MultiTrack simplify(const Track &tr, unsigned id, bool keep_all_notes) {
 	MultiTrack ch;
+	bool sustain = false;
 	// set absolute times
 	if (tr[0].time) ch.push_back(ToneMidi{ id, 0, 0 });
 	if (!keep_all_notes) {
 		for (auto const &note: tr)
-			ch.push_back(ToneMidi{ id, (note.on ? note.note : 0), note.time });
+			if (note.note != 255) ch.push_back(ToneMidi{ id, (note.on ? note.note : 0), note.time });
 	}
 	else {
 		// at every instant, if multiple notes are playing, keep the higher one (but only as long as it's playing)
 		set<unsigned> playing;
 		for (auto const &note: tr) {
-			if (note.on) {
+			if (note.note == 255) {
+				sustain = note.on;
+				if (!sustain) playing.clear();
+			}
+			else if (note.on) {
 				if (playing.empty() || *playing.rbegin() < note.note)
 					ch.push_back(ToneMidi{ id, note.note, note.time });
-				playing.insert(note.note);
+				if (sustain) playing.insert(note.note);
 			}
 			else {
 				//if (!playing.empty() && note.note == *playing.rbegin()) playing.clear();
