@@ -69,7 +69,7 @@ void write_wav_file(const char *fname, unsigned fs, vector<uint8_t> const &data)
 
 
 int main(int argc, char **argv) {
-	if (argc != 4) {
+	if (argc != 5) {
 		cerr << "Argument error" << endl;
 		return 1;
 	}
@@ -106,7 +106,8 @@ int main(int argc, char **argv) {
 	// interleave the two channels and convert times to durations
 	auto mixed = interleave(channels[0], channels[1]);
 	// truncate
-	mixed.resize(std::min(atoi(argv[3]), (int)mixed.size()));
+	mixed.resize(std::min(atoi(argv[4]), (int)mixed.size()));
+	mixed.erase(mixed.begin(), mixed.begin() + atoi(argv[3]));
 	mixed.push_back(ToneMidi{0, 0, 100});
 	mixed.push_back(ToneMidi{1, 0, 100});
 
