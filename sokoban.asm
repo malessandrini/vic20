@@ -98,6 +98,7 @@ joy_prev	ds 1  ; previous value of joystick for repetition
 joy_filter  ds 1  ; filter bits for joystick reading
 joy_rep		ds 2  ; manage joystick repetition rate (16 bit)
 lev_unlock	ds 1  ; maximum level that's been unlocked
+flags		ds 1  ; bit 0: disable autoscroll
 ; for every level, the following variables tell how to draw the map
 ; in a 11x11 logical screen (2x2 chars for every cell), with possible
 ; scrolling for maps larger than 11 rows or columns
@@ -162,6 +163,8 @@ start
 		txs
 
 		; initial setup
+		lda #0
+		sta flags
 		lda #255
 		sta joy_filter
 		; enable repeat for all keys
@@ -360,24 +363,24 @@ scroll_up
 		lda map_r
 		beq trmpl1
 		dec map_r
-		jmp redraw_level
+		jmp redraw_noscroll
 scroll_down
 		lda map_r
 		cmp delta_r
 		beq trmpl1
 		inc map_r
-		jmp redraw_level
+		jmp redraw_noscroll
 scroll_left
 		lda map_c
 		beq trmpl1
 		dec map_c
-		jmp redraw_level
+		jmp redraw_noscroll
 scroll_right
 		lda map_c
 		cmp delta_c
 		beq trmpl1
 		inc map_c
-		jmp redraw_level
+		jmp redraw_noscroll
 undo_move
 		jsr undo_revert_move
 		jmp redraw_level
@@ -459,6 +462,12 @@ only_man
 		jsr undo_add_move  ; must not change k
 		lda k  ; completed?
 		bne level_complete
+		jmp redraw_level
+
+redraw_noscroll
+		lda flags
+		ora #1
+		sta flags
 		jmp redraw_level
 
 
@@ -1008,6 +1017,7 @@ load_level
 draw_level
 		SUBROUTINE
 		;jsr clearscreen
+		jsr auto_scroll
 		lda #<[video+22]
 		sta scrn_ptr
 		lda #>[video+22]
@@ -1184,46 +1194,6 @@ draw_level
 
 
 ; ----------------------------------------------------------------------
-
-ascii2vic
-		SUBROUTINE
-		; input: A (ascii)
-		; only works for ascii codes in range 32..90 (except '@')
-		cmp #65
-		bcc .ok
-		sbc #64
-		clc
-.ok		adc #CHAR_OFF
-		rts
-
-
-; ----------------------------------------------------------------------
-
-print_string
-		; input: scrn_ptr, extra_ptr (0-terminated string, ascii in range 32..90 except '@')
-		;  bytes in range 1..31 are interpreted as space skip
-		SUBROUTINE
-		ldy #0
-.l1		lda (extra_ptr),y
-		beq .end
-		cmp #32
-		bcc .skip
-		jsr ascii2vic
-		sta (scrn_ptr),y
-.l2		iny
-		bne .l1
-		inc extra_ptr+1
-		inc scrn_ptr+1
-		jmp .l1
-.skip	adc scrn_ptr  ; C is 0
-		sta scrn_ptr
-		bcc .l2
-		inc scrn_ptr+1
-		jmp .l2
-.end	rts
-
-
-; ----------------------------------------------------------------------
 ; convenience macro to call print_string
 
 	mac prn_str
@@ -1271,35 +1241,6 @@ print_decimal
 
 ; ----------------------------------------------------------------------
 
-divide
-		; input: A, X ; output: X = result (A/X), A = remainder
-		; uses: i
-		SUBROUTINE
-		stx i
-		ldx #0  ; result, incremented at every subtraction
-		sec
-.l1		sbc i
-		bcc .l2  ; if negative, stop subctracting
-		inx
-		jmp .l1
-.l2		adc i  ; an extra subtraction was performed; C is clear here (but becomes set)
-		rts
-
-
-; ----------------------------------------------------------------------
-
-delay_jiffy
-		; input: A = 1/60 seconds
-		SUBROUTINE
-		clc
-		adc 162  ; jiffy clock
-.loop1	cmp 162
-		bne .loop1
-		rts
-
-
-; ----------------------------------------------------------------------
-
 getchar
 		; output: A
 		; empty keyboard buffer, than wait for new char
@@ -1310,27 +1251,6 @@ getchar
 .l2		jsr GETIN
 		cmp #0
 		beq .l2
-		rts
-
-
-; ----------------------------------------------------------------------
-
-getjoystick
-		; output: A (bits from 0: E, N, S, W, fire)
-		SUBROUTINE
-		lda $911f
-		eor #$ff
-		and #$3c
-		ldx #$7f
-		sei
-		stx $9122
-		ldx $9120
-		bmi .l1
-		ora #$02
-.l1		ldx #$ff
-		stx $9122
-		cli
-		lsr
 		rts
 
 
@@ -1397,22 +1317,6 @@ getchar_joy
 		rts
 
 
-; ----------------------------------------------------------------------
-
-getchar_or_fire
-		; output: A
-		; wait for keyboard or joystick (fire button only)
-		SUBROUTINE
-		lda #16
-		sta joy_filter
-		jsr getchar_joy
-		tax
-		lda #255
-		sta joy_filter
-		txa
-		rts
-
-
 	IFCONST MUSIC
 
 ; ----------------------------------------------------------------------
@@ -1454,6 +1358,7 @@ music_start
 music_irq
 		SUBROUTINE
 		lda music_on
+		and #3
 		cmp #3
 		bne .end
 		dec music_dur
@@ -1506,14 +1411,6 @@ music_mute
 
 ; ----------------------------------------------------------------------
 
-	IFCONST EXP8k
-hole	equ	charmem-.
-		ALLOCATE_CHARACTERS
-	ENDIF
-
-
-; ----------------------------------------------------------------------
-
 clearscreen
 		SUBROUTINE
 		; screen and border color
@@ -1534,6 +1431,127 @@ clearscreen
 		sta vcolor+253,y
 		bne .loop3
 		rts
+
+
+; ----------------------------------------------------------------------
+
+auto_scroll
+		SUBROUTINE
+		lda flags
+		and #1
+		bne .end
+		lda delta_r
+		beq .cols  ; no vertical scrolling
+		; compute man's row
+		lda man
+		ldx cols
+		jsr divide
+		txa
+		tay  ; y will keep the result
+		ldx #0
+		jsr auto_scroll_gen
+.cols	lda delta_c
+		beq .end  ; no horizontal scrolling
+		; compute man's column
+		lda man
+		ldx cols
+		jsr divide
+		tay  ; y will keep the result
+		ldx #1
+		jsr auto_scroll_gen
+.end	lda flags
+		and #~1
+		sta flags
+		rts
+
+auto_scroll_gen
+		SUBROUTINE
+		; this works if map_r,map_c and delta_r,delta_c are contiguous, as they are indexed by X
+		; comments are for rows but are valid for columns, too
+.test_low
+		; man's row - map_r is the on-screen actual position; test if < 0
+		tya
+		sec
+		sbc map_r,x  ; A = man's row - map_r
+		bcc .fix_low  ; if negative, move map down
+		beq .fix_low  ; try to scroll even in man in first row (extra room to be seen)
+.test_high
+		; arriving here, A (row - map_r) is > 0; test if A > 9
+		sec
+		sbc #10
+		bcc .end  ; if A < 10: A <= 9, so no fix needed
+.fix_high
+		lda map_r,x
+		cmp delta_r,x
+		beq .end  ; cannot increase any more
+		inc map_r,x
+		jmp .test_low  ; A must be recomputed
+.fix_low
+		lda map_r,x
+		beq .end  ; cannot decrease any more
+		dec map_r,x
+		jmp .test_low  ; check again
+.end	rts
+
+
+; ----------------------------------------------------------------------
+
+	IFCONST EXP8k
+hole	equ	charmem-.
+		ALLOCATE_CHARACTERS
+	ENDIF
+
+
+; ----------------------------------------------------------------------
+
+delay_jiffy
+		; input: A = 1/60 seconds
+		SUBROUTINE
+		clc
+		adc 162  ; jiffy clock
+.loop1	cmp 162
+		bne .loop1
+		rts
+
+
+; ----------------------------------------------------------------------
+
+ascii2vic
+		SUBROUTINE
+		; input: A (ascii)
+		; only works for ascii codes in range 32..90 (except '@')
+		cmp #65
+		bcc .ok
+		sbc #64
+		clc
+.ok		adc #CHAR_OFF
+		rts
+
+
+; ----------------------------------------------------------------------
+
+print_string
+		; input: scrn_ptr, extra_ptr (0-terminated string, ascii in range 32..90 except '@')
+		;  bytes in range 1..31 are interpreted as space skip
+		SUBROUTINE
+		ldy #0
+.l1		lda (extra_ptr),y
+		beq .end
+		cmp #32
+		bcc .skip
+		jsr ascii2vic
+		sta (scrn_ptr),y
+.l2		iny
+		bne .l1
+		inc extra_ptr+1
+		inc scrn_ptr+1
+		jmp .l1
+.skip	adc scrn_ptr  ; C is 0
+		sta scrn_ptr
+		bcc .l2
+		inc scrn_ptr+1
+		jmp .l2
+.end	rts
 
 
 ;=======================================================================
@@ -1723,6 +1741,61 @@ hole	equ	charmem-.
 		ALLOCATE_CHARACTERS
 	ENDIF
 
+
+; ----------------------------------------------------------------------
+
+getchar_or_fire
+		; output: A
+		; wait for keyboard or joystick (fire button only)
+		SUBROUTINE
+		lda #16
+		sta joy_filter
+		jsr getchar_joy
+		tax
+		lda #255
+		sta joy_filter
+		txa
+		rts
+
+
+; ----------------------------------------------------------------------
+
+divide
+		; input: A, X ; output: X = result (A/X), A = remainder
+		; uses: i
+		SUBROUTINE
+		stx i
+		ldx #0  ; result, incremented at every subtraction
+		sec
+.l1		sbc i
+		bcc .l2  ; if negative, stop subctracting
+		inx
+		jmp .l1
+.l2		adc i  ; an extra subtraction was performed; C is clear here (but becomes set)
+		rts
+
+
+; ----------------------------------------------------------------------
+
+getjoystick
+		; output: A (bits from 0: E, N, S, W, fire)
+		SUBROUTINE
+		lda $911f
+		eor #$ff
+		and #$3c
+		ldx #$7f
+		sei
+		stx $9122
+		ldx $9120
+		bmi .l1
+		ora #$02
+.l1		ldx #$ff
+		stx $9122
+		cli
+		lsr
+		rts
+
+
 ;=======================================================================
 ; ----------------------------------------------------------------------
 ;=======================================================================
@@ -1741,12 +1814,6 @@ fulllimit
 		IF fulllimit > ramend
 			ERR
 		ENDIF
-
-
-; TODO
-; autoscrolling
-; annotate all routines
-
 
 
 ;=======================================================================
