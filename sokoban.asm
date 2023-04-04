@@ -844,6 +844,7 @@ load_level
 		bne .l1
 		; compute number of bitmap bytes (walls) to be read = (lev_size + 7) / 8
 		lda lev_size
+		clc
 		adc #7  ; A = lev_size + 7
 		lsr
 		lsr
@@ -1243,36 +1244,45 @@ print_string
 print_decimal
 		; input: scrn_ptr, A
 		SUBROUTINE
-		sta i
-		ldx #0  ; remainder
 		; first, divide by 100 to find first digit
-.hundr	lda i
-		sec
-		sbc #100
-		bcc .l1  ; if negative, stop subtracting
-		sta i
-		inx
-		jmp .hundr
-.l1		txa
-		adc #48+CHAR_OFF  ; C is already clear
+		ldx #100
+		jsr divide
+		pha  ; save remainder
+		txa
+		clc
+		adc #48+CHAR_OFF
 		ldy #0
 		sta (scrn_ptr),y  ; first digit
-		ldx #0
-.tenth	lda i
-		sec
-		sbc #10
-		bcc .l2  ; if negative, stop subtracting
-		sta i
-		inx
-		jmp .tenth
-.l2		txa
-		adc #48+CHAR_OFF  ; C is already clear
-		iny
-		sta (scrn_ptr),y  ; second digit
-		lda i  ; remainder, third digit
+		; second, divide by 10 to find second and third digit
+		pla
+		ldx #10
+		jsr divide
+		ldy #2
+		clc
 		adc #48+CHAR_OFF
-		iny
 		sta (scrn_ptr),y  ; third digit
+		txa
+		;clc
+		adc #48+CHAR_OFF
+		dey
+		sta (scrn_ptr),y  ; second digit
+		rts
+
+
+; ----------------------------------------------------------------------
+
+divide
+		; input: A, X ; output: X = result (A/X), A = remainder
+		; uses: i
+		SUBROUTINE
+		stx i
+		ldx #0  ; result, incremented at every subtraction
+		sec
+.l1		sbc i
+		bcc .l2  ; if negative, stop subctracting
+		inx
+		jmp .l1
+.l2		adc i  ; an extra subtraction was performed; C is clear here (but becomes set)
 		rts
 
 
@@ -1487,11 +1497,7 @@ music_irq
 	ELSE
 
 music_start
-		rts
-
 music_stop
-		rts
-
 music_mute
 		rts
 
