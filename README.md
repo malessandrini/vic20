@@ -12,6 +12,6 @@ Press "H" for a complete list of keys. If you want to cheat, the code for the la
 
 ## Connect4
 
-The connect4 game, for unexpanded VIC. Use cursor+space or digits to play. See d64 floppy image in Releases.
+The connect4 game, for unexpanded VIC, to be played against the computer (and it's quite strong). Use cursor+space or digits to play. See d64 floppy image in Releases.
 
 ![screenshot](screenshot_connect4.png)
