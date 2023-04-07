@@ -242,7 +242,7 @@ main0	jsr getchar_joy
 
 help_menu
 		jsr clearscreen
-		prn_str video+22*1+3, str_help1
+		prn_str video+22*1+4, str_help1
 		jsr getchar
 		rts
 help_menu1
@@ -725,26 +725,25 @@ str_main1
 		dc 173, 128, 128, 128, 128, 128, 128, 128, 128, 128, 189, 30, 30, 9
 		dc "SPACE,FIRE: START", 26
 		dc "C: ENTER LEVEL CODE", 24
-		dc "H: HELP", 0
+		dc "H: HELP", 31, 31, 31, 31, 31, 9
+		dc "M.ALESSANDRINI  2023", 0
 str_help1
-		dc "IN-GAME CONTROLS", 22, 22, 22
+		dc "GAME CONTROLS", 25, 22, 21
 		dc "ARROWS,JOYSTICK: MOVE ", 21
 		dc "W,A,S,Z: SCROLL VIEW", 23
 		dc "N,P: NEXT/PREV. LEVEL", 22
 		dc "U,FIRE: UNDO MOVE", 26
 		dc "F1: EXIT TO MENU", 27
 		dc "F7: RESET LEVEL", 28
-		dc "H: THIS HELP"
+		dc "H: HELP"
 	IFCONST MUSIC
-		dc 31, "M: MUSIC ON/OFF"
+		dc 31, 4, "M: MUSIC ON/OFF"
 	ENDIF
 		dc 0
 str_lev_code
 		dc "CODE FOR LEVEL    :", 0
 str_enter_code
 		dc "ENTER CODE:", 22, 24, 30, "------", 0
-str_press_h
-		dc "PRESS ", 34, "H", 34, " FOR HELP", 0
 str_header
 		dc "LEVEL:", 5, "MOVES:", 0
 str_popup_frame
@@ -1740,6 +1739,10 @@ music_data_end
 hole	equ	charmem-.
 		ALLOCATE_CHARACTERS
 	ENDIF
+
+
+str_press_h
+		dc "PRESS ", 34, "H", 34, " FOR HELP", 0
 
 
 ; ----------------------------------------------------------------------
